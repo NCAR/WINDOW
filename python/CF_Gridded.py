@@ -1,0 +1,498 @@
+# *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=
+# Copyright UCAR (c) 2019
+# University Corporation for Atmospheric Research(UCAR)
+# National Center for Atmospheric Research(NCAR)
+# Research Applications Laboratory(RAL)
+# P.O.Box 3000, Boulder, Colorado, 80307-3000, USA
+# 28/01/2019
+#
+# Name:        module1
+# Purpose:
+# Author:      $ Kevin Sampson
+# Created:     28/01/2019
+# Licence:     <your licence>
+# *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=
+
+# Written by Kevin Sampson, NCAR
+# Modified 2019/01/28
+##ALP = True            # If running on Windows machine ALP, must start python VirtualEnv
+##if ALP == True:
+##    # Activate Virtual Environment so we can use Numpy 1.9.x, which GDAl is compiled against
+##    activate_this_file = r'C:\Python27\VirtualEnv_x64\Scripts\activate_this.py'     # Path to Virtual Environment python activate script
+##    execfile(activate_this_file, dict(__file__=activate_this_file))
+
+# --- Import Core Modules --- #
+import sys
+import os
+import time
+import math
+
+# Import Additional Modules
+import numpy
+import netCDF4
+import ogr
+import osr
+# --- End Import Modules --- #
+
+# --- Module Configurations --- #
+sys.dont_write_bytecode = True                                                  # Do not write compiled (.pyc) files
+# --- End Module Configurations --- #
+
+# --- Globals --- #
+BASE_DIR = os.path.join('C:','Users','ksampson','Desktop','WINDOW_data','CF_Converter')
+if not os.path.exists(BASE_DIR):
+    BASE_DIR = os.getcwd()
+in_nc = os.path.join(BASE_DIR, 'ncar_les_geo_em.d01.nc')
+projdir = BASE_DIR
+out_nc = os.path.join(projdir, os.path.basename(in_nc).replace('.nc', '_spatial.nc'))
+geogridVariable = 'HGT_M'                                                       # 2D Variable in the GEOGRID file to use in defining the grid
+processing_notes_SM = 'Created for testing WINDOW AIR converter'                # Notes section appended to the output netCDF file as a global attribute
+XYmap = {'x': 'west_east', 'y': 'south_north'}                                  # Dictionary to define mapping between (x,y) and input file dimension names
+
+# Latitude and Longitude 2D array information
+addLatLon = True                                                                # Add Latitude and Longitude variables to output file?
+addData = True                                                                  # Switch to add data variable defined in 'geogridVariable' to output
+latVar = 'XLAT_M'                                                               # Latitude variable in the input file (must be on grid cell center)
+lonVar = 'XLONG_M'                                                              # Longitude variable in the input file (must be on grid cell center)
+
+# Initiate dictionaries of GEOGRID projections and parameters
+#   See http://www.mmm.ucar.edu/wrf/users/docs/user_guide_V3/users_guide_chap3.htm#_Description_of_the_1
+projdict = {1: 'Lambert Conformal Conic',
+            2: 'Polar Stereographic',
+            3: 'Mercator',
+            6: 'Cylindrical Equidistant'}
+CF_projdict = {1: "lambert_conformal_conic",
+               2: "polar_stereographic",
+               3: "mercator",
+               6: "latitude_longitude",
+               0: "crs"}
+
+# Unify all coordinate system variables to have the same name ("crs"). Ths makes it easier for WRF-Hydro output routines to identify the variable and transpose it to output files
+crsVarname = True                                                               # Switch to make all coordinate system variables = "crs" instead of related to the coordinate system name
+crsVar = CF_projdict[0]                                                         # Expose this as a global for other functions in other scripts to use
+CFConv = 'CF-1.5'                                                               # CF-Conventions version to place in the 'Conventions' attribute of RouteLink files. Maybe 1.0 is enough?
+PpVersion = 'v1 (01/2019)'                                                      # WINDOW AIR version to add to output metadata
+outNCType = 'NETCDF4_CLASSIC'                                                   # Define the output netCDF version for RouteLink.nc and LAKEPARM.nc
+
+# Global attributes for altering the sphere radius used in computations. Do not alter sphere_radius for standard WRF simulations
+sphere_radius = 6370000.0                                                       # Radius of sphere to use (WRF Default = 6370000.0m)
+# --- End Globals --- #
+
+# --- Functions --- #
+def Read_GEOGRID_for_SRS(in_nc):
+    """
+    The input NetCDF file (Ideally WRF GEOGRID) gets georeferenced and projection
+    infromation is created.
+
+    10/6/2017: Proj4 string generation was added, with definitions adapted from
+    https://github.com/NCAR/wrf-python/blob/develop/src/wrf/projection.py
+    """
+
+    tic = time.time()
+
+    # First step: Import and georeference NetCDF file
+    print('  Step 1: NetCDF Conversion initiated...')
+    print('    Input netCDF GEOGRID file: %s' %in_nc)
+
+    # Read input WPS GEOGRID file
+    # Loop through global variables in NetCDF file to gather projection information
+    rootgrp = netCDF4.Dataset(in_nc, 'r')                                       # Establish an object for reading the input NetCDF file
+    globalAtts = rootgrp.__dict__                                               # Read all global attributes into a dictionary
+    map_pro = globalAtts['MAP_PROJ']                                            # Find out which projection this GEOGRID file is in
+    print('    Map Projection: %s' %projdict[map_pro])
+
+    # Collect grid corner XY and DX DY for creating ascii raster later
+    if 'corner_lats' in globalAtts:
+        corner_lat = globalAtts['corner_lats'][13].astype(numpy.float64)        # Note: The values returned are corner points of the mass grid. 13 = Upper left of the Unstaggered grid
+    if 'corner_lons' in globalAtts:
+        corner_lon = globalAtts['corner_lons'][13].astype(numpy.float64)        # Note: The values returned are corner points of the mass grid. 13 = Upper left of the Unstaggered grid
+    if 'DX' in globalAtts:
+        DX = globalAtts['DX'].astype(numpy.float32)
+    if 'DY' in globalAtts:
+        DY = globalAtts['DY'].astype(numpy.float32)
+
+    # Collect necessary information to put together the projection file
+    if 'TRUELAT1' in globalAtts:
+        standard_parallel_1 = globalAtts['TRUELAT1'].astype(numpy.float64)
+    if 'TRUELAT2' in globalAtts:
+        standard_parallel_2 = globalAtts['TRUELAT2'].astype(numpy.float64)
+    if 'STAND_LON' in globalAtts:
+        central_meridian = globalAtts['STAND_LON'].astype(numpy.float64)
+    if 'POLE_LAT' in globalAtts:
+        pole_latitude = globalAtts['POLE_LAT'].astype(numpy.float64)
+    if 'POLE_LON' in globalAtts:
+        pole_longitude = globalAtts['POLE_LON'].astype(numpy.float64)
+    if 'MOAD_CEN_LAT' in globalAtts:
+        print('    Using MOAD_CEN_LAT for latitude of origin.')
+        latitude_of_origin = globalAtts['MOAD_CEN_LAT'].astype(numpy.float64)         # Added 2/26/2017 by KMS
+    elif 'CEN_LAT' in globalAtts:
+        print('    Using CEN_LAT for latitude of origin.')
+        latitude_of_origin = globalAtts['CEN_LAT'].astype(numpy.float64)
+    del globalAtts
+    rootgrp.close()
+
+    # Initiate OSR spatial reference object - See http://gdal.org/java/org/gdal/osr/SpatialReference.html
+    proj1 = osr.SpatialReference()
+
+    # Use projection information from global attributes to populate OSR spatial reference object
+    # See this website for more information on defining coordinate systems: http://gdal.org/java/org/gdal/osr/SpatialReference.html
+    print('    Map Projection: %s' %projdict[int(map_pro)])
+    if map_pro == 1:
+        # Lambert Conformal Conic
+        if 'standard_parallel_2' in locals():
+            proj1.SetLCC(standard_parallel_1, standard_parallel_2, latitude_of_origin, central_meridian, 0, 0)
+            #proj1.SetLCC(double stdp1, double stdp2, double clat, double clong, double fe, double fn)        # fe = False Easting, fn = False Northing
+        else:
+            proj1.SetLCC1SP(latitude_of_origin, central_meridian, 1, 0, 0)       # Scale = 1???
+            #proj1.SetLCC1SP(double clat, double clong, double scale, double fe, double fn)       # 1 standard parallell
+    elif map_pro == 2:
+        # Polar Stereographic
+        phi1 = standard_parallel_1
+        ### Back out the central_scale_factor (minimum scale factor?) using formula below using Snyder 1987 p.157 (USGS Paper 1395)
+        ##phi = math.copysign(float(pole_latitude), float(latitude_of_origin))    # Get the sign right for the pole using sign of CEN_LAT (latitude_of_origin)
+        ##central_scale_factor = (1 + (math.sin(math.radians(phi1))*math.sin(math.radians(phi))) + (math.cos(math.radians(float(phi1)))*math.cos(math.radians(phi))))/2
+        # Method where central scale factor is k0, Derivation from C. Rollins 2011, equation 1: http://earth-info.nga.mil/GandG/coordsys/polar_stereographic/Polar_Stereo_phi1_from_k0_memo.pdf
+        # Using Rollins 2011 to perform central scale factor calculations. For a sphere, the equation collapses to be much  more compact (e=0, k90=1)
+        central_scale_factor = (1 + math.sin(math.radians(abs(phi1))))/2        # Equation for k0, assumes k90 = 1, e=0. This is a sphere, so no flattening
+        print('        Central Scale Factor: %s' %central_scale_factor)
+        #proj1.SetPS(latitude_of_origin, central_meridian, central_scale_factor, 0, 0)    # example: proj1.SetPS(90, -1.5, 1, 0, 0)
+        proj1.SetPS(pole_latitude, central_meridian, central_scale_factor, 0, 0)    # Adjusted 8/7/2017 based on changes made 4/4/2017 as a result of Monaghan's polar sterographic domain. Example: proj1.SetPS(90, -1.5, 1, 0, 0)
+        #proj1.SetPS(double clat, double clong, double scale, double fe, double fn)
+    elif map_pro == 3:
+        # Mercator Projection
+        proj1.SetMercator(latitude_of_origin, central_meridian, 1, 0, 0)     # Scale = 1???
+        #proj1.SetMercator(double clat, double clong, double scale, double fe, double fn)
+    elif map_pro == 6:
+        # Cylindrical Equidistant (or Rotated Pole)
+        if pole_latitude != float(90) or pole_longitude != float(0):
+            # if pole_latitude, pole_longitude, or stand_lon are changed from thier default values, the pole is 'rotated'.
+            print('[PROBLEM!] Cylindrical Equidistant projection with a rotated pole is not currently supported.')
+            raise SystemExit
+        else:
+            proj1.SetEquirectangular(latitude_of_origin, central_meridian, 0, 0)
+            #proj1.SetEquirectangular(double clat, double clong, double fe, double fn)
+            #proj1.SetEquirectangular2(double clat, double clong, double pseudostdparallellat, double fe, double fn)
+
+    # Set Geographic Coordinate system (datum) for projection
+    proj1.SetGeogCS('WRF_Sphere', 'Sphere', '', sphere_radius, 0.0)      # Could try 104128 (EMEP Sphere) well-known?
+    #proj1.SetGeogCS(String pszGeogName, String pszDatumName, String pszSpheroidName, double dfSemiMajor, double dfInvFlattening)
+
+    # Set the origin for the output raster (in GDAL, usuall upper left corner) using projected corner coordinates
+    wgs84_proj = osr.SpatialReference()
+    wgs84_proj.ImportFromEPSG(4326)
+    transform = osr.CoordinateTransformation(wgs84_proj, proj1)
+    point = ogr.Geometry(ogr.wkbPoint)
+    point.AddPoint_2D(corner_lon, corner_lat)
+    point.Transform(transform)
+    x00 = point.GetX(0)
+    y00 = point.GetY(0)
+    print('  Created projection definition from input NetCDF GEOGRID file %s in %.2fs.' %(in_nc, time.time()-tic))
+    return proj1, DX, DY, x00, y00, map_pro
+
+def add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, PE_stringEsri, PE_stringGDAL, GeoTransformStr=None):
+    """
+    This function was added to generalize the creating of a coordinate reference
+    system variable based on a spatial reference object and other grid and projection
+    information.
+
+    To find OGR projection parameters, reference https://www.gdal.org/ogr__srs__api_8h.html
+    """
+    tic1 = time.time()
+
+    # Scalar projection variable - http://www.unidata.ucar.edu/software/thredds/current/netcdf-java/reference/StandardCoordinateTransforms.html
+    proj_var = rootgrp.createVariable(CoordSysVarName, 'S1')                    # (Scalar Char variable)
+    proj_var.transform_name = grid_mapping                                      # grid_mapping. grid_mapping_name is an alias for this
+    proj_var.grid_mapping_name = grid_mapping                                   # for CF compatibility
+    proj_var.esri_pe_string = PE_stringEsri                                     # For ArcGIS. Not required if esri_pe_string exists in the 2D variable attributes
+    proj_var.spatial_ref = PE_stringGDAL                                        # For GDAl
+    proj_var.long_name = "CRS definition"                                       # Added 10/13/2017 by KMS to match GDAL format
+    proj_var.longitude_of_prime_meridian = 0.0                                  # Added 10/13/2017 by KMS to match GDAL format
+    if GeoTransformStr is not None:
+        proj_var.GeoTransform = GeoTransformStr                                 # For GDAl - GeoTransform array
+
+    # Projection specific parameters - http://www.unidata.ucar.edu/software/thredds/current/netcdf-java/reference/StandardCoordinateTransforms.html
+    if map_pro == 1:
+        # Lambert Conformal Conic
+
+        # Required transform variables
+        proj_var._CoordinateAxes = 'y x'                                            # Coordinate systems variables always have a _CoordinateAxes attribute, optional for dealing with implicit coordinate systems
+        proj_var._CoordinateTransformType = "Projection"
+        proj_var.standard_parallel = sr.GetProjParm("standard_parallel_1"), sr.GetProjParm("standard_parallel_2")     # Double
+        proj_var.longitude_of_central_meridian = float(sr.GetProjParm("central_meridian")) # Double. Necessary in combination with longitude_of_prime_meridian?
+        proj_var.latitude_of_projection_origin = float(sr.GetProjParm("latitude_of_origin"))         # Double
+
+        # Optional tansform variable attributes
+        proj_var.false_easting = float(sr.GetProjParm("false_easting"))         # Double  Always in the units of the x and y projection coordinates
+        proj_var.false_northing = float(sr.GetProjParm("false_northing"))       # Double  Always in the units of the x and y projection coordinates
+        proj_var.earth_radius = sphere_radius                                   # OPTIONAL. Parameter not read by Esri. Default CF sphere: 6371.229 km.
+        proj_var.semi_major_axis = sphere_radius                                # Added 10/13/2017 by KMS to match GDAL format
+        proj_var.inverse_flattening = float(0)                                  # Added 10/13/2017 by KMS to match GDAL format: Double - optional Lambert Conformal Conic parameter
+
+    elif map_pro == 2:
+        # Polar Stereographic
+
+        # Required transform variables
+        proj_var._CoordinateAxes = 'y x'                                            # Coordinate systems variables always have a _CoordinateAxes attribute, optional for dealing with implicit coordinate systems
+        proj_var._CoordinateTransformType = "Projection"
+        proj_var.longitude_of_projection_origin = float(sr.GetProjParm("longitude_of_origin"))   # Double - proj_var.straight_vertical_longitude_from_pole = ''
+        proj_var.latitude_of_projection_origin = float(sr.GetProjParm("latitude_of_origin"))     # Double
+        proj_var.scale_factor_at_projection_origin = float(sr.GetProjParm("scale_factor"))      # Double
+
+        # Optional tansform variable attributes
+        proj_var.false_easting = float(sr.GetProjParm("false_easting"))                         # Double  Always in the units of the x and y projection coordinates
+        proj_var.false_northing = float(sr.GetProjParm("false_northing"))                       # Double  Always in the units of the x and y projection coordinates
+        proj_var.earth_radius = sphere_radius                                   # OPTIONAL. Parameter not read by Esri. Default CF sphere: 6371.229 km.
+        proj_var.semi_major_axis = sphere_radius                                # Added 10/13/2017 by KMS to match GDAL format
+        proj_var.inverse_flattening = float(0)                                  # Added 10/13/2017 by KMS to match GDAL format: Double - optional Lambert Conformal Conic parameter
+
+    elif map_pro == 3:
+        # Mercator
+
+        # Required transform variables
+        proj_var._CoordinateAxes = 'y x'                                            # Coordinate systems variables always have a _CoordinateAxes attribute, optional for dealing with implicit coordinate systems
+        proj_var._CoordinateTransformType = "Projection"
+        proj_var.longitude_of_projection_origin = float(sr.GetProjParm("longitude_of_origin"))   # Double
+        proj_var.latitude_of_projection_origin = float(sr.GetProjParm("latitude_of_origin"))     # Double
+        proj_var.standard_parallel = float(sr.GetProjParm("standard_parallel_1"))                # Double
+        proj_var.earth_radius = sphere_radius                                   # OPTIONAL. Parameter not read by Esri. Default CF sphere: 6371.229 km.
+        proj_var.semi_major_axis = sphere_radius                                # Added 10/13/2017 by KMS to match GDAL format
+        proj_var.inverse_flattening = float(0)                                  # Added 10/13/2017 by KMS to match GDAL format: Double - optional Lambert Conformal Conic parameter
+
+    elif map_pro == 6:
+        # Cylindrical Equidistant or rotated pole
+
+        #http://cfconventions.org/Data/cf-conventions/cf-conventions-1.6/build/cf-conventions.html#appendix-grid-mappings
+        # Required transform variables
+        #proj_var.grid_mapping_name = "latitude_longitude"                      # or "rotated_latitude_longitude"
+
+        print('        Cylindrical Equidistant projection not supported.')
+        raise SystemExit
+
+    # Added 10/13/2017 by KMS to accomodate alternate datums
+    elif map_pro == 0:
+        proj_var._CoordinateAxes = 'lat lon'
+        proj_var.semi_major_axis = sr.GetSemiMajor()                            #
+        proj_var.semi_minor_axis =  sr.GetSemiMinor()                           #
+        if sr.flattening != 0:
+            proj_var.inverse_flattening = float(float(1)/sr.GetInvFlattening()) # This avoids a division by 0 error
+        else:
+            proj_var.inverse_flattening = float(0)
+        pass
+
+    # Global attributes related to CF-netCDF
+    rootgrp.Conventions = CFConv
+    return rootgrp
+
+def getXY(GeoTransformStr, array, flipY=True):
+    """
+    This function will use the affine transformation (GeoTransform) to produce an
+    array of X and Y 1D arrays. Note that the GDAL affine transformation provides
+    the grid cell coordinates from the upper left corner. This is typical in GIS
+    applications. However, WRF uses a south_north ordering, where the arrays are
+    written from the bottom to the top. Thus, in order to flip the y array, select
+    flipY = True (default).
+    """
+    tic1 = time.time()
+    gt = [float(item) for item in GeoTransformStr.split(' ')]
+
+    # Build i,j arrays
+    j = numpy.arange(dataArr.shape[0]) + float(0.5)                             # Add 0.5 to estimate coordinate of grid cell centers
+    i = numpy.arange(dataArr.shape[1]) + float(0.5)                             # Add 0.5 to estimate coordinate of grid cell centers
+
+    # col, row to x, y   From https://www.perrygeo.com/python-affine-transforms.html
+    x = (i * gt[1]) + gt[0]
+    y = (j * gt[5]) + gt[3]
+
+    if flipY:
+        y = y[::-1]
+    print('    1D Coordinate variables calculated in {0: 8.2f} seconds.'.format(time.time()-tic1))
+    return x, y
+
+
+def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransformStr, Xsize, Ysize, xarr, yarr, addLatLon=False, addVars=[], WKT_Esri="", WKT_GDAL="", addData=False):
+    """This function will create the netCDF file with CF conventions for the grid
+    description. The output NetCDF will have the XMAP/YMAP created for the x and
+    y variables and the LATITUDE and LONGITUDE variables populated with the selected
+    global variables latVar and lonVar from the GEOGRID file."""
+
+    tic1 = time.time()
+    print('  Creating CF-netCDF File.')
+
+    # Find name for the grid mapping
+    if CF_projdict.get(map_pro) is not None:
+        grid_mapping = CF_projdict[map_pro]
+        print('    Map Projection of input raster : %s' %grid_mapping)
+    else:
+        grid_mapping = 'crs'                                                    # Added 10/13/2017 by KMS to generalize the coordinate system variable names
+        print('    Map Projection of input raster (not a WRF projection): %s' %grid_mapping)
+
+    # Create Dimensions
+    dim_y = rootgrp.createDimension('y', Ysize)
+    dim_x = rootgrp.createDimension('x', Xsize)
+    print('    Dimensions created after {0: 8.2f} seconds.'.format(time.time()-tic1))
+
+    # Create coordinate variables
+    var_y = rootgrp.createVariable('y', 'f8', 'y')                              # (64-bit floating point)
+    var_x = rootgrp.createVariable('x', 'f8', 'x')                              # (64-bit floating point)
+
+    # Must handle difference between ProjectionCoordinateSystem and LatLonCoordinateSystem
+    if proj.IsGeocentric():
+        if crsVarname:
+            CoordSysVarName = crsVar
+        else:
+            CoordSysVarName = "LatLonCoordinateSystem"
+
+        # Set variable attributes
+        #var_y.standard_name = ''
+        #var_x.standard_name = ''
+        var_y.long_name = "latitude coordinate"
+        var_x.long_name = "longitude coordinate"
+        var_y.units = "degrees_north"
+        var_x.units = "degrees_east"
+        var_y._CoordinateAxisType = "Lat"
+        var_x._CoordinateAxisType = "Lon"
+
+    elif proj.IsProjected():
+        if crsVarname:
+            CoordSysVarName = crsVar
+        else:
+            CoordSysVarName = "ProjectionCoordinateSystem"
+        #proj_units = sr.linearUnitName.lower()                                  # sr.projectionName wouldn't work for a GEOGCS
+        proj_units = 'm'                                                        # Change made 11/3/2016 by request of NWC
+
+        # Set variable attributes
+        var_y.standard_name = 'projection_y_coordinate'
+        var_x.standard_name = 'projection_x_coordinate'
+        var_y.long_name = 'y coordinate of projection'
+        var_x.long_name = 'x coordinate of projection'
+        var_y.units = proj_units                                                # was 'meter', now 'm'
+        var_x.units = proj_units                                                # was 'meter', now 'm'
+        var_y._CoordinateAxisType = "GeoY"                                      # Use GeoX and GeoY for projected coordinate systems only
+        var_x._CoordinateAxisType = "GeoX"                                      # Use GeoX and GeoY for projected coordinate systems only
+        var_y.resolution = float(DY)                                            # Added 11/3/2016 by request of NWC
+        var_x.resolution = float(DX)                                            # Added 11/3/2016 by request of NWC
+
+        # Build coordinate reference system variable
+        rootgrp = add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, WKT_Esri, WKT_GDAL, GeoTransformStr)
+
+    # For prefilling additional variables and attributes on the same 2D grid, given as a list [[<varname>, <vardtype>, <long_name>],]
+    for varinfo in addVars:
+        ncvar = rootgrp.createVariable(varinfo[0], varinfo[1], ('y', 'x'))
+        ncvar.esri_pe_string = WKT_Esri
+        ncvar.grid_mapping = CoordSysVarName
+        #ncvar.long_name = varinfo[2]
+        #ncvar.units = varinfo[3]
+
+    # Fill in  x and y variables
+    var_y[:] = yarr[:]
+    var_x[:] = xarr[:]
+    del yarr, xarr
+    print('    Coordinate variables and variable attributes set after {0: 8.2f} seconds.'.format(time.time()-tic1))
+
+    if addLatLon == True:
+
+        print('    Proceeding to add LATITUDE and LONGITUDE variables after {0: 8.2f} seconds.'.format(time.time()-tic1))
+
+        # Populate this file with 2D latitude and longitude variables
+        # Latitude and Longitude variables (WRF)
+        lat_WRF = rootgrp.createVariable('LATITUDE', 'f4', ('y', 'x'))          # (32-bit floating point)
+        lon_WRF = rootgrp.createVariable('LONGITUDE', 'f4', ('y', 'x'))         # (32-bit floating point)
+        lat_WRF.long_name = 'latitude coordinate'                               # 'LATITUDE on the WRF Sphere'
+        lon_WRF.long_name = 'longitude coordinate'                              # 'LONGITUDE on the WRF Sphere'
+        lat_WRF.units = "degrees_north"
+        lon_WRF.units = "degrees_east"
+        lat_WRF._CoordinateAxisType = "Lat"
+        lon_WRF._CoordinateAxisType = "Lon"
+        lat_WRF.grid_mapping = CoordSysVarName                                  # This attribute appears to be important to Esri
+        lon_WRF.grid_mapping = CoordSysVarName                                  # This attribute appears to be important to Esri
+
+        '''Adding the Esri PE String in addition to the CF grid mapping attributes
+        is very useful. Esri will prefer the PE string over other CF attributes,
+        allowing a spherical datum to be defined. Esri can interpret the coordinate
+        system variable alone, but will assume the datum is WGS84. This cannot be
+        changed except when using an Esri PE String.'''
+
+        lat_WRF.esri_pe_string = WKT_Esri
+        lon_WRF.esri_pe_string = WKT_Esri
+
+        # Missing value attribute not needed yet
+        #missing_val = numpy.finfo(numpy.float32).min                            # Define missing data variable based on numpy
+        #lat_WRF.missing_value = missing_val                                     # Float sys.float_info.min?
+        #lon_WRF.missing_value = missing_val                                     # Float sys.float_info.min?
+
+        ##    # Create a new coordinate system variable
+        ##    LatLonCoordSysVarName = "LatLonCoordinateSystem"
+        ##    latlon_var = rootgrp.createVariable(LatLonCoordSysVarName, 'S1')            # (Scalar Char variable)
+        ##    latlon_var._CoordinateAxes = 'LATITUDE LONGITUDE'                           # Coordinate systems variables always have a _CoordinateAxes attribute
+
+        # Data variables need _CoodinateSystems attribute
+        lat_WRF._CoordinateAxisType = "Lat"
+        lon_WRF._CoordinateAxisType = "Lon"
+        lat_WRF._CoordinateSystems = CoordSysVarName
+        lon_WRF._CoordinateSystems = CoordSysVarName
+        ##    lat_WRF._CoordinateSystems = "%s %s" %(CoordSysVarName, LatLonCoordSysVarName)        # For specifying more than one coordinate system
+        ##    lon_WRF._CoordinateSystems = "%s %s" %(CoordSysVarName, LatLonCoordSysVarName)        # For specifying more than one coordinate system
+
+    if addData:
+        data_Var = rootgrp.createVariable(geogridVariable, dataArr.dtype, ('y', 'x'))          # (32-bit floating point)
+        data_Var.grid_mapping = CoordSysVarName                                 # This attribute appears to be important to Esri
+        data_Var.esri_pe_string = WKT_Esri
+        data_Var._CoordinateSystems = CoordSysVarName
+        #data_Var.units = ''
+        #data_Var.long_name = ''
+        data_Var[:] = dataArr
+
+    print('    netCDF global attributes set after {0: 8.2f} seconds.'.format(time.time()-tic1))
+    return rootgrp
+
+if __name__ == '__main__':
+    tic = time.time()
+
+    # Gather all necessary parameters
+    #in_nc = sys.argv[1]
+    #out_nc =  = sys.argv[2]
+
+    # Get projection information as an OSR SpatialReference object from Geogrid File
+    proj, DX, DY, x00, y00, map_pro = Read_GEOGRID_for_SRS(in_nc)
+
+    # Build coordinate system representations
+    proj4 = proj.ExportToProj4()                                                # Proj.4 string coordinate system representation
+    GeoTransform = '%s %s %s %s %s %s' %(x00, DX, 0, y00, 0, -DY)               # Build an affine transformation (useful info to add to metadata)
+    PE_stringGDAL = proj.ExportToWkt()                                          # This is GDAL's representation of a WTK string
+    proj.MorphToESRI()                                                          # Alter the projection to Esri's representation of a coordinate system
+    PE_stringEsri = proj.ExportToWkt()                                          # This is Esri's representation of a WKT string
+    print('  Proj4: {0}'.format(proj4))                                         # Print Proj.4 string to screen
+    print('  GeoTransform: {0}'.format(GeoTransform))                           # Print affine transformation to screen.
+
+    # Gather variable from the input file
+    rootgrp_in = netCDF4.Dataset(in_nc, 'r')                                    # Open read object on input netCDF file
+    ncvar = rootgrp_in.variables[geogridVariable]                               # netCDF Variable object
+    varDims = ncvar.dimensions                                                  # Read variable dimensions for the selected GEOGRID variable
+    Ysize = ncvar.shape[ncvar.dimensions.index(XYmap['y'])]                   # Get the dimension size based on the dimension name
+    Xsize = ncvar.shape[ncvar.dimensions.index(XYmap['x'])]                   # Get the dimension size based on the dimension name
+    dataArr = ncvar[0]                                                          # Select first time slice. Assumes time is first dimension.
+    del ncvar
+
+    # Gather 1D coordinates using data array size and geotransform
+    xarr, yarr = getXY(GeoTransform, dataArr, flipY=True)                       # Use affine transformation to calculate cell coordinates
+
+    # Create spatial metadata file for GEOGRID/LDASOUT grids
+    rootgrp = netCDF4.Dataset(out_nc, 'w', format=outNCType)                    # Open write object (create) on output netCDF file
+    rootgrp = create_CF_NetCDF(rootgrp, dataArr, proj, map_pro, projdir, DX, DY,
+        GeoTransform, Xsize, Ysize, xarr, yarr, addLatLon=addLatLon, WKT_Esri=PE_stringEsri,
+        WKT_GDAL=PE_stringGDAL, addData=addData)
+
+    if addLatLon:
+        rootgrp.variables['LATITUDE'][:] = rootgrp_in.variables[latVar][0]
+        rootgrp.variables['LONGITUDE'][:] = rootgrp_in.variables[lonVar][0]
+    rootgrp_in.close()
+
+    # Add additional metadata to the output file
+    rootgrp.GDAL_DataType = 'Generic'
+    rootgrp.history = 'Created %s' %time.ctime()
+    rootgrp.Source_Software = 'WINDOW AIR Processor %s' %PpVersion
+    rootgrp.proj4 = proj4
+    rootgrp.processing_notes = processing_notes_SM
+    rootgrp.close()
+    del rootgrp, rootgrp_in
+    print('Process completed in {0: 3.2f} seconds.'.format(time.time()-tic))

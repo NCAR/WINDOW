@@ -1,0 +1,1248 @@
+{
+  "FGRNHFX": {
+        "long_name" : "heat_flux_from_ground_fire",
+    "standard_name" : "",
+      "description" : "heat flux from ground fire"
+  },
+  "FCANHFX": {
+        "long_name" : "heat_flux_from_crown_fire",
+    "standard_name" : "",
+      "description" : "heat flux from crown fire"
+  },
+  "FLAME_LENGTH": {
+        "long_name" : "fire_flame_length",
+    "standard_name" : "",
+      "description" : "fire flame length"
+  },
+  "FXLAT": {
+        "long_name" : "latitude_fire_cells",
+    "standard_name" : "",
+      "description" : "latitude of midpoints of fire cells"
+  },
+  "FXLONG": {
+        "long_name" : "longitude_fire_cells",
+    "standard_name" : "",
+      "description" : "longitude of midpoints of fire cells"
+  },
+  "FIRE_AREA": {
+        "long_name" : "",
+    "standard_name" : "fire_area",
+            "units" : "m2",
+      "description" : "fraction of cell area on fire"
+  },
+  "ROS_FRONT": {
+        "long_name" : "rate_of_spread_at_fire_front",
+    "standard_name" : "",
+      "description" : "rate of spread at fire front"
+  },
+  "SMOKE_AVG" : {
+        "long_name" : "smoke_avg",
+    "standard_name" : "",
+            "units" : "g_smoke/kg_air",
+      "description" : "smoke_avg"
+  },
+  "SMOKE_MAX": {
+        "long_name" : "smoke_max",
+    "standard_name" : "",
+            "units" : "g_smoke/kg_air",
+      "description" : "smoke_max"
+  },
+  "SMOKE_SUM": {
+        "long_name" : "smoke_sum",
+    "standard_name" : "",
+            "units" : "g_smoke/kg_air",
+      "description" : "smoke_sum"
+  },
+  "Times": {
+        "long_name" : "times",
+    "standard_name" : ""
+  },
+  "XLAT": {
+        "long_name" : "",
+    "standard_name" : "latitude",
+      "description" : "LATITUDE, SOUTH IS NEGATIVE"
+  },
+  "XLONG": {
+        "long_name" : "",
+    "standard_name" : "longitude",
+      "description" : "LONGITUDE, WEST IS NEGATIVE"
+  },
+  "XTIME": {
+        "long_name" : "",
+    "standard_name" : "time",
+      "description" : "minutes since 0000-00-00 00.00.00"
+  },
+  "ZSF": {
+        "long_name" : "",
+    "standard_name" : "height_above_mean_sea_level",
+      "description" : "height of surface above sea level"
+  },
+  
+  "fire_smoke": {
+        "long_name" : "fire_smoke",
+    "standard_name" : "",
+      "description" : "fire_smoke"
+  },
+  
+  
+  
+  "LU_INDEX": {
+        "long_name" : "land_use_index",
+    "standard_name" : "",
+      "description" : "LAND USE CATEGORY"
+  },
+  "ZNU": {
+        "long_name" : "eta_values_on_half_mass_levels",
+    "standard_name" : "",
+      "description" : "eta values on half (mass) levels"
+  },
+  "ZNW": {
+        "long_name" : "eta_values_on_half_w_levels",
+    "standard_name" : "",
+      "description" : "eta values on half (w) levels"
+  },
+  "ZS": {
+        "long_name" : "depths_of_centers_of_soil_layers",
+    "standard_name" : "",
+      "description" : "DEPTHS OF CENTERS OF SOIL LAYERS"
+  },
+  "DZS": {
+        "long_name" : "thicknesses_of_soil_layers",
+    "standard_name" : "",
+      "description" : "THICKNESSES OF SOIL LAYERS"
+  },
+  "VAR_SSO": {
+        "long_name" : "variance_of_subgrid-scale_orography",
+    "standard_name" : "",
+      "description" : "variance of subgrid-scale orography"
+  },
+  "U": {
+        "long_name" : "",
+    "standard_name" : "eastward_wind",
+      "description" : "x-wind component"
+  },
+  "V": {
+        "long_name" : "",
+    "standard_name" : "northward_wind",
+      "description" : "y-wind component"
+  },
+  "W": {
+        "long_name" : "",
+    "standard_name" : "upward_air_velocity",
+      "description" : "z-wind component"
+  },
+  "PH": {
+        "long_name" : "perturbation_geopotential",
+    "standard_name" : "",
+      "description" : "perturbation geopotential"
+  },
+  "PHB": {
+        "long_name" : "base-state_geopotential",
+    "standard_name" : "",
+      "description" : "base-state geopotential"
+  },
+  "T": {
+        "long_name" : "",
+    "standard_name" : "air_potential_temperature",
+      "description" : "perturbation potential temperature (theta-t0)"
+  },
+  "HFX_FORCE": {
+        "long_name" : "scm_ideal_surface_sensible_heat_flux",
+    "standard_name" : "",
+      "description" : "SCM ideal surface sensible heat flux"
+  },
+  "LH_FORCE": {
+        "long_name" : "scm_ideal_surface_latent_heat_flux",
+    "standard_name" : "",
+      "description" : "SCM ideal surface latent heat flux"
+  },
+  "TSK_FORCE": {
+        "long_name" : "scm_ideal_surface_skin_temperature",
+    "standard_name" : "",
+      "description" : "SCM ideal surface skin temperature"
+  },
+  "HFX_FORCE_TEND": {
+        "long_name" : "scm_ideal_surface_sensible_heat_flux_tendency",
+    "standard_name" : "",
+      "description" : "SCM ideal surface sensible heat flux tendency"
+  },
+  "LH_FORCE_TEND": {
+        "long_name" : "scm_ideal_surface_latent_heat_flux_tendency",
+    "standard_name" : "",
+      "description" : "SCM ideal surface latent heat flux tendency"
+  },
+  "TSK_FORCE_TEND": {
+        "long_name" : "scm_ideal_surface_skin_temperature_tendency",
+    "standard_name" : "",
+      "description" : "SCM ideal surface skin temperature tendency"
+  },
+  "MU": {
+        "long_name" : "perturbation_dry_air_mass_in_column",
+    "standard_name" : "",
+      "description" : "perturbation dry air mass in column"
+  },
+  "MUB": {
+        "long_name" : "base_state_dry_air_mass_in_column",
+    "standard_name" : "",
+      "description" : "base state dry air mass in column"
+  },
+  "NEST_POS": {
+        "long_name" : "nest_pos",
+    "standard_name" : "",
+      "description" : "-"
+  },
+  "P": {
+        "long_name" : "",
+    "standard_name" : "air_pressure",
+      "description" : "perturbation pressure"
+  },
+  "PB": {
+        "long_name" : "base_state_pressure",
+    "standard_name" : "",
+      "description" : "BASE STATE PRESSURE"
+  },
+  "FNM": {
+        "long_name" : "upper_weight_for_vertical_stretching",
+    "standard_name" : "",
+      "description" : "upper weight for vertical stretching"
+  },
+  "FNP": {
+        "long_name" : "lower_weight_for_vertical_stretching",
+    "standard_name" : "",
+      "description" : "lower weight for vertical stretching"
+  },
+  "RDNW": {
+        "long_name" : "inverse_eta_values_between_full_w)levels",
+    "standard_name" : "",
+      "description" : "inverse d(eta) values between full (w) levels"
+  },
+  "RDN": {
+        "long_name" : "inverse_eta_values_between_half_mass_levels",
+    "standard_name" : "",
+      "description" : "inverse d(eta) values between half (mass) levels"
+  },
+  "DNW": {
+        "long_name" : "eta_values_between_full_w_levels",
+    "standard_name" : "",
+      "description" : "d(eta) values between full (w) levels"
+  },
+  "DN": {
+        "long_name" : "eta_values_between_half_mass_levels",
+    "standard_name" : "",
+      "description" : "d(eta) values between half (mass) levels"
+  },
+  "CFN": {
+        "long_name" : "extrapolation_constant",
+    "standard_name" : "",
+      "description" : "extrapolation constant"
+  },
+  "CFN1": {
+        "long_name" : "extrapolation_constant1",
+    "standard_name" : "",
+      "description" : "extrapolation constant"
+  },
+  "THIS_IS_AN_IDEAL_RUN": {
+        "long_name" : "this_is_an_ideal_run",
+    "standard_name" : "",
+      "description" : "T/F flag: this is an ARW ideal simulation"
+  },
+  "P_HYD": {
+        "long_name" : "hydrostatic_pressure",
+    "standard_name" : "",
+      "description" : "hydrostatic pressure"
+  },
+  "Q2": {
+        "long_name" : "qv_at_2m",
+    "standard_name" : "",
+      "description" : "QV at 2 M"
+  },
+  "T2": {
+        "long_name" : "temp_at_2m",
+    "standard_name" : "",
+      "description" : "TEMP at 2 M"
+  },
+  "TH2": {
+        "long_name" : "pot_temp_at_2m",
+    "standard_name" : "",
+      "description" : "POT TEMP at 2 M"
+  },
+  "PSFC": {
+        "long_name" : "surface_air_pressure",
+    "standard_name" : "",
+      "description" : "SFC PRESSURE"
+  },
+  "U10": {
+        "long_name" : "eastward_wind_at_10m",
+    "standard_name" : "",
+      "description" : "U at 10M"
+  },
+  "V10": {
+        "long_name" : "northward_wind_at_10m",
+    "standard_name" : "",
+      "description" : "V at 10 M"
+  },
+  "RDX": {
+        "long_name" : "inverse_x_grid_length",
+    "standard_name" : "",
+      "description" : "INVERSE X GRID LENGTH"
+  },
+  "RDY": {
+        "long_name" : "inverse_y_grid_length",
+    "standard_name" : "",
+      "description" : "INVERSE Y GRID LENGTH"
+  },
+  "RESM": {
+        "long_name" : "time_weight_constant_for_small_steps",
+    "standard_name" : "",
+      "description" : "TIME WEIGHT CONSTANT FOR SMALL STEPS"
+  },
+  "ZETATOP": {
+        "long_name" : "zeta_at_model_top",
+    "standard_name" : "",
+      "description" : "ZETA AT MODEL TOP"
+  },
+  "CF1": {
+        "long_name" : "2nd_order_extrapolation_constant1",
+    "standard_name" : "",
+      "description" : "2nd order extrapolation constant"
+  },
+  "CF2": {
+        "long_name" : "2nd_order_extrapolation_constant2",
+    "standard_name" : "",
+      "description" : "2nd order extrapolation constant"
+  },
+  "CF3" : {
+        "long_name" : "2nd_order_extrapolation_constant3",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "2nd order extrapolation constant"
+  },
+  "ITIMESTEP" : {
+        "long_name" : "i_timestep",
+    "standard_name" : "",
+            "units" : "",
+      "description" : ""    
+  },
+  "QVAPOR" : {
+        "long_name" : "water_vapor_mixing_ratio",
+    "standard_name" : "",
+            "units" : "kg kg-1",
+      "description" : "Water vapor mixing ratio"
+  },
+  "QCLOUD" : {
+        "long_name" : "cloud_water_mixing_ratio",
+    "standard_name" : "",
+            "units" : "kg kg-1",
+      "description" : "Cloud water mixing ratio"
+  },
+  "QRAIN" : {
+        "long_name" : "rain_water_mixing_ratio",
+    "standard_name" : "",
+            "units" : "kg kg-1",
+      "description" : "Rain water mixing ratio"
+  },
+  "QICE" : {
+        "long_name" : "ice_mixing_ratio",
+    "standard_name" : "",
+            "units" : "kg kg-1",
+      "description" : "Ice mixing ratio"
+  },
+  "QSNOW" : {
+        "long_name" : "snow mixing ratio",
+    "standard_name" : "",
+            "units" : "kg kg-1",
+      "description" : "Snow mixing ratio"
+  },
+  "QGRAUP" : {
+        "long_name" : "graupel mixing ratio",
+    "standard_name" : "",
+            "units" : "kg kg-1",
+      "description" : "Graupel mixing ratio"
+  },
+  "SHDMAX" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "ANNUAL MAX VEG FRACTION"
+  },
+  "SHDMIN" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "ANNUAL MIN VEG FRACTION"
+  },
+  "SNOALB" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "ANNUAL MAX SNOW ALBEDO IN FRACTION"
+  },
+  "TSLB" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "K",
+      "description" : "SOIL TEMPERATURE"
+  },
+  "U_SFC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "m s-1",
+      "description" : "U at surface"
+  },
+  "V_SFC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "m s-1",
+      "description" : "V at surface"
+  },
+  "SMOIS" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "m3 m-3",
+      "description" : "SOIL MOISTURE"
+  },
+  "SH2O" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "m3 m-3",
+      "description" : "SOIL LIQUID WATER"
+  },
+  "SMCREL" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "RELATIVE SOIL MOISTURE"
+  },
+  "SEAICE" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "SEA ICE FLAG"
+  },
+  "XICEM" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "SEA ICE FLAG (PREVIOUS STEP)"
+  },
+  "SFROFF" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "mm",
+      "description" : "SURFACE RUNOFF"
+  },
+  "UDROFF" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "mm",
+      "description" : "UNDERGROUND RUNOFF"
+  },
+  "IVGTYP" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "DOMINANT VEGETATION CATEGORY"
+  },
+  "ISLTYP" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "DOMINANT SOIL CATEGORY"
+  },
+  "VEGFRA" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "VEGETATION FRACTION"
+  },
+  "GRDFLX" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W m-2",
+      "description" : "GROUND HEAT FLUX"
+  },
+  "ACGRDFLX" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "ACCUMULATED GROUND HEAT FLUX"
+  },
+  "ACSNOM" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "kg m-2",
+      "description" : "ACCUMULATED MELTED SNOW"
+  },
+  "SNOW" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "kg m-2",
+      "description" : "SNOW WATER EQUIVALENT"
+  },
+  "SNOWH" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "m",
+      "description" : "PHYSICAL SNOW DEPTH"
+  },
+  "CANWAT" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "kg m-2",
+      "description" : "CANOPY WATER"
+  },
+  "SSTSK" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "K",
+      "description" : "SKIN SEA SURFACE TEMPERATURE"
+  },
+  "COSZEN" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "dimensionless",
+      "description" : "COS of SOLAR ZENITH ANGLE"
+  },
+  "LAI" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "m-2/m-2",
+      "description" : "LEAF AREA INDEX"
+  },
+  "QKE" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "m2 s-2",
+      "description" : "twice TKE from MYNN"
+  },
+  "VAR" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "OROGRAPHIC VARIANCE"
+  },
+  "TKE_PBL" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "m2 s-2",
+      "description" : "TKE from PBL"
+  },
+  "EL_PBL" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "m",
+      "description" : "Length scale from PBL"
+  },
+  "MAPFAC_M" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "Map scale factor on mass grid"
+  },
+  "MAPFAC_U" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "Map scale factor on u-grid"
+  },
+  "MAPFAC_V" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "Map scale factor on v-grid"
+  },
+  "MAPFAC_MX" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "Map scale factor on mass grid, x direction"
+  },
+  "MAPFAC_MY" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "Map scale factor on mass grid, y direction"
+  },
+  "MAPFAC_UX" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "Map scale factor on u-grid, x direction"
+  },
+  "MAPFAC_UY" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "Map scale factor on u-grid, y direction"
+  },
+  "MAPFAC_VX" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "Map scale factor on v-grid, x direction"
+  },
+  "MF_VX_INV" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "Inverse map scale factor on v-grid, x direction"
+  },
+  "MAPFAC_VY" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "Map scale factor on v-grid, y direction"
+  },
+  "F" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "s-1",
+      "description" : "Coriolis sine latitude term"
+  },
+  "E" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "s-1",
+      "description" : "Coriolis cosine latitude term"
+  },
+  "SINALPHA" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "Local sine of map rotation"
+  },
+  "COSALPHA" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "Local cosine of map rotation"
+  },
+  "HGT" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "m",
+      "description" : "Terrain Height"
+  },
+  "TSK" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "K",
+      "description" : "SURFACE SKIN TEMPERATURE"
+  },
+  "P_TOP" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "Pa",
+      "description" : "PRESSURE TOP OF THE MODEL"
+  },
+  "T00" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "K",
+      "description" : "BASE STATE TEMPERATURE"
+  },
+  "P00" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "Pa",
+      "description" : "BASE STATE PRESURE"
+  },
+  "TLP" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "BASE STATE LAPSE RATE"
+  },
+  "TISO" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "K",
+      "description" : "TEMP AT WHICH THE BASE T TURNS CONST"
+  },
+  "TLP_STRAT" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "K",
+      "description" : "BASE STATE LAPSE RATE (DT/D(LN(P)) IN STRATOSPHERE"
+  },
+  "P_STRAT" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "Pa",
+      "description" : "BASE STATE PRESSURE AT BOTTOM OF STRATOSPHERE"
+  },
+  "MAX_MSTFX" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "Max map factor in domain"
+  },
+  "MAX_MSTFY" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "Max map factor in domain"
+  },
+  "RAINC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "mm",
+      "description" : "ACCUMULATED TOTAL CUMULUS PRECIPITATION"
+  },
+  "RAINSH" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "mm",
+      "description" : "ACCUMULATED SHALLOW CUMULUS PRECIPITATION"
+  },
+  "RAINNC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "mm",
+      "description" : "ACCUMULATED TOTAL GRID SCALE PRECIPITATION"
+  },
+  "SNOWNC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "mm",
+      "description" : "ACCUMULATED TOTAL GRID SCALE SNOW AND ICE"
+  },
+  "GRAUPELNC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "mm",
+      "description" : "ACCUMULATED TOTAL GRID SCALE GRAUPEL"
+  },
+  "HAILNC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "mm",
+      "description" : "ACCUMULATED TOTAL GRID SCALE HAIL"
+  },
+  "CLDFRA" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "CLOUD FRACTION"
+  },
+  "SWDOWN" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W m-2",
+      "description" : "DOWNWARD SHORT WAVE FLUX AT GROUND SURFACE"
+  },
+  "GLW" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W m-2",
+      "description" : "DOWNWARD LONG WAVE FLUX AT GROUND SURFACE"
+  },
+  "SWNORM" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W m-2",
+      "description" : "NORMAL SHORT WAVE FLUX AT GROUND SURFACE (SLOPE-DEPENDENT)"
+  },
+  "ACLWUPT" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "ACCUMULATED UPWELLING LONGWAVE FLUX AT TOP"
+  },
+  "ACLWUPTC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "ACCUMULATED UPWELLING CLEAR SKY LONGWAVE FLUX AT TOP"
+  },
+  "ACLWDNT" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "ACCUMULATED DOWNWELLING LONGWAVE FLUX AT TOP"
+  },
+  "ACLWDNTC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "ACCUMULATED DOWNWELLING CLEAR SKY LONGWAVE FLUX AT TOP"
+  },
+  "ACLWUPB" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "ACCUMULATED UPWELLING LONGWAVE FLUX AT BOTTOM"
+  },
+  "ACLWUPBC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "ACCUMULATED UPWELLING CLEAR SKY LONGWAVE FLUX AT BOTTOM"
+  },
+  "ACLWDNB" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "ACCUMULATED DOWNWELLING LONGWAVE FLUX AT BOTTOM"
+  },
+  "ACLWDNBC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "ACCUMULATED DOWNWELLING CLEAR SKY LONGWAVE FLUX AT BOTTOM"
+  },
+  "I_ACLWUPT" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "BUCKET FOR UPWELLING LONGWAVE FLUX AT TOP"
+  },
+  "I_ACLWUPTC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "BUCKET FOR UPWELLING CLEAR SKY LONGWAVE FLUX AT TOP"
+  },
+  "I_ACLWDNT" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "BUCKET FOR DOWNWELLING LONGWAVE FLUX AT TOP"
+  },
+  "I_ACLWDNTC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "BUCKET FOR DOWNWELLING CLEAR SKY LONGWAVE FLUX AT TOP"
+  },
+  "I_ACLWUPB" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "BUCKET FOR UPWELLING LONGWAVE FLUX AT BOTTOM"
+  },
+  "I_ACLWUPBC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "BUCKET FOR UPWELLING CLEAR SKY LONGWAVE FLUX AT BOTTOM"
+  },
+  "I_ACLWDNB" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "BUCKET FOR DOWNWELLING LONGWAVE FLUX AT BOTTOM"
+  },
+  "I_ACLWDNBC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "BUCKET FOR DOWNWELLING CLEAR SKY LONGWAVE FLUX AT BOTTOM"
+  },
+  "LWUPT" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W m-2",
+      "description" : "INSTANTANEOUS UPWELLING LONGWAVE FLUX AT TOP"
+  },
+  "LWUPTC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W m-2",
+      "description" : "INSTANTANEOUS UPWELLING CLEAR SKY LONGWAVE FLUX AT TOP"
+  },
+  "LWDNT" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W m-2",
+      "description" : "INSTANTANEOUS DOWNWELLING LONGWAVE FLUX AT TOP"
+  },
+  "LWDNTC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W m-2",
+      "description" : "INSTANTANEOUS DOWNWELLING CLEAR SKY LONGWAVE FLUX AT TOP"
+  },
+  "LWUPB" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W m-2",
+      "description" : "INSTANTANEOUS UPWELLING LONGWAVE FLUX AT BOTTOM"
+  },
+  "LWUPBC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W m-2",
+      "description" : "INSTANTANEOUS UPWELLING CLEAR SKY LONGWAVE FLUX AT BOTTOM"
+  },
+  "LWDNB" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W m-2",
+      "description" : "INSTANTANEOUS DOWNWELLING LONGWAVE FLUX AT BOTTOM"
+  },
+  "LWDNBC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W m-2",
+      "description" : "INSTANTANEOUS DOWNWELLING CLEAR SKY LONGWAVE FLUX AT BOTTOM"
+  },
+  "OLR" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W m-2",
+      "description" : "TOA OUTGOING LONG WAVE"
+  },
+  "XLAT_U" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "degree_north",
+      "description" : "LATITUDE, SOUTH IS NEGATIVE"
+  },
+  "XLONG_U" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "degree_east",
+      "description" : "LONGITUDE, WEST IS NEGATIVE"
+  },
+  "XLAT_V" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "degree_north",
+      "description" : "LATITUDE, SOUTH IS NEGATIVE"
+  },
+  "XLONG_V" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "degree_east",
+      "description" : "LONGITUDE, WEST IS NEGATIVE"
+  },
+  "ALBEDO" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "-",
+      "description" : "ALBEDO"
+  },
+  "CLAT" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "degree_north",
+      "description" : "COMPUTATIONAL GRID LATITUDE, SOUTH IS NEGATIVE"
+  },
+  "ALBBCK" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "BACKGROUND ALBEDO"
+  },
+  "EMISS" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "SURFACE EMISSIVITY"
+  },
+  "NOAHRES" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W m{-2}",
+      "description" : "RESIDUAL OF THE NOAH SURFACE ENERGY BUDGET"
+  },
+  "TMN" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "K",
+      "description" : "SOIL TEMPERATURE AT LOWER BOUNDARY"
+  },
+  "XLAND" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "LAND MASK (1 FOR LAND, 2 FOR WATER)"
+  },
+  "UST" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "m s-1",
+      "description" : "U* IN SIMILARITY THEORY"
+  },
+  "PBLH" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "m",
+      "description" : "PBL HEIGHT"
+  },
+  "HFX" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W m-2",
+      "description" : "UPWARD HEAT FLUX AT THE SURFACE"
+  },
+  "QFX" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "kg m-2 s-1",
+      "description" : "UPWARD MOISTURE FLUX AT THE SURFACE"
+  },
+  "LH" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W m-2",
+      "description" : "LATENT HEAT FLUX AT THE SURFACE"
+  },
+  "ACHFX" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "ACCUMULATED UPWARD HEAT FLUX AT THE SURFACE"
+  },
+  "ACLHF" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "J m-2",
+      "description" : "ACCUMULATED UPWARD LATENT HEAT FLUX AT THE SURFACE"
+  },
+  "SNOWC" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "FLAG INDICATING SNOW COVERAGE (1 FOR SNOW COVER)"
+  },
+  "SR" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "-",
+      "description" : "fraction of frozen precipitation"
+  },
+  "SAVE_TOPO_FROM_REAL" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "flag",
+      "description" : "1=original topo from real/0=topo modified by WRF"
+  },
+  "DZDXF" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "1",
+      "description" : "surface gradient x"
+  },
+  "DZDYF" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "1",
+      "description" : "surface gradient y"
+  },
+  "LFN_0" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "1",
+      "description" : "level function for time integration, step 0"
+  },
+  "LFN_1" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "1",
+      "description" : "level function for time integration, step 1"
+  },
+  "LFN_2" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "1",
+      "description" : "level function for time integration, step 2"
+  },
+  "LFN_S0" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "1",
+      "description" : "level set sign function from LSM integration"
+  },
+  "LFN_S1" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "1",
+      "description" : "level set function for reinitialization integration"
+  },
+  "LFN_S2" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "1",
+      "description" : "level set function for reinitialization integration"
+  },
+  "LFN_S3" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "1",
+      "description" : "level set function for reinitialization integration"
+  },
+  "LFN_DEBUG" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "1",
+      "description" : "level set debugging variable"
+  },
+  "GRNHFX_YO" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W/m^2",
+      "description" : "heat flux from ground fire (feedback unsensitive)"
+  },
+  "GRNQFX_YO" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "W/m^2",
+      "description" : "moisture flux from ground fire (feedback unsensitive)"
+  },
+  "BURNT_AREA_DT" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "-",
+      "description" : "fraction of cell area burnt on current dt"
+  },
+  "FZ0" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "m",
+      "description" : "roughness length of fire cells"
+  },
+  "IBOROS" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "kJ/m^2",
+      "description" : "fire intensity over rate of spread"
+  },
+  "FLAME_LENGTH" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "m",
+      "description" : "fire flame length"
+  },
+  "ROS_FRONT" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "m/s",
+      "description" : "rate of spread at fire front"
+  },
+  "ISEEDARR_RAND_PERTURB" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "Array to hold seed for restart, RAND_PERT"
+  },
+  "ISEEDARR_SPPT" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "Array to hold seed for restart, SPPT"
+  },
+  "ISEEDARR_SKEBS" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "Array to hold seed for restart, SKEBS"
+  },
+  "LANDMASK" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "LAND MASK (1 FOR LAND, 0 FOR WATER)"
+  },
+  "LAKEMASK" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "LAKE MASK (1 FOR LAKE, 0 FOR NON-LAKE)"
+  },
+  "SST" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "K",
+      "description" : "SEA SURFACE TEMPERATURE"
+  },
+  "SST_INPUT" : {
+        "long_name" : "",
+    "standard_name" : "",
+            "units" : "K",
+      "description" : "SEA SURFACE TEMPERATURE FROM WRFLOWINPUT FILE"
+  },
+
+  "zIndex" : {
+        "long_name" : "z_ndex",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "zIndex"
+  },
+  "yIndex" : {
+        "long_name" : "y_index",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "yIndex"
+  },
+  "xIndex" : {
+        "long_name" : "x_index",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "xIndex"
+  },
+  "xPos" : {
+        "long_name" : "x_pos",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "xPos"
+  },
+  "yPos" : {
+        "long_name" : "y_pos",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "yPos"
+  },
+  "zPos" : {
+        "long_name" : "z_pos",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "zPos"
+  },
+  "rho" : {
+        "long_name" : "rho",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "rho"
+  },
+  "theta" : {
+        "long_name" : "theta",
+    "standard_name" : "",
+            "units" : "",
+      "description" : "theta"
+  },
+  "pressure" : {
+    "standard_name" : "air_pressure",
+            "units" : "",
+      "description" : "air pressure"
+  },
+  "AuxScalar_0" : {
+        "long_name" : "auxscalar_0",
+    "standard_name" : "",
+            "units" : "",
+      "description" : ""
+  },
+
+  "u": {
+        "long_name" : "",
+    "standard_name" : "eastward_wind",
+      "description" : "x-wind component"
+  },
+  "v": {
+        "long_name" : "",
+    "standard_name" : "northward_wind",
+      "description" : "y-wind component"
+  },
+  "w": {
+        "long_name" : "",
+    "standard_name" : "upward_air_velocity",
+      "description" : "z-wind component"
+  },
+  
+  "dummy": {
+        "long_name" : "dummy",
+    "standard_name" : "dummy",
+      "description" : "dummy"
+  }
+}

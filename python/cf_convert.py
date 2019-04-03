@@ -1,0 +1,409 @@
+#!/usr/bin/env python
+import os, sys
+import json
+from optparse import OptionParser
+
+from netCDF4 import Dataset as nc4_Dataset
+from netCDF4 import Variable as nc4_Variable
+
+from cfchecks import CFChecker, vn1_6
+from cfchecks import getargs as check_getargs
+
+WINDOW_CF_NAMES_CFG='cf_names.json'
+
+DEBUG_P  = "   DEBUG]"
+INFO_P   = "   INFO]"
+ACTION_P = "   ACTION]"
+FIXME_P  = "   == FIX ME =="
+
+def create_parser():
+    usage_str = "%prog [options] "
+    parser = OptionParser(usage = usage_str)
+    #parser.add_option("-o", "--output-name", "--output_name", dest="out_name", default=None,
+    #        help=" output name. must have nc extension, optional")
+    parser.add_option("--out_dir", "--out-dir", dest="out_dir", default='.',
+            help=" output directory - optional")
+    parser.add_option("--geogird", "--out-dir", dest="geogird", default=None,
+            help=" output directory - optional")
+    parser.add_option('-a','--area_types', dest="areatypes", default=None)
+    parser.add_option('-b','--badc', dest="badc", default=None)
+    parser.add_option('-c','--coards', dest="coards", default=None)
+    parser.add_option("-d", dest="debug", action="store_true", default=False,
+            help=" Enable debug - optional")
+    parser.add_option('-l','--uploader', dest="uploader", default=None)
+    parser.add_option('-n','--noname', dest="useFileName", default=None)
+    #        useFileName="no"
+    parser.add_option('-s','--cf_standard_names', dest="standardname", default=None)
+    parser.add_option('-v','--version', dest="cf_version", default=None)
+
+    return parser
+
+
+def correct_global_fatal(from_nc, to_nc, check_code, message):
+    print('{p}   correct_global_fatal() code: {c}, {m}'.format(p=FIXME_P, c=check_code, m=message))
+
+def correct_global_error(from_nc, to_nc, check_code, message):
+    print('{p}   correct_global_error() code: {c}, {m}'.format(p=FIXME_P, c=check_code, m=message))
+
+def correct_global_warn(from_nc, to_nc, check_code, message):
+    if check_code == '2.6.1':
+        attr_key = 'Conventions'
+        attr_value = vn1_6.__str__()
+        to_nc.setncattr(attr_key, attr_value)
+        print("{p} The global attribute {k} ({v}) is added".format(
+                p=ACTION_P, k=attr_key, v=attr_value))
+    else:
+        print('{p}  correct_global_warn() code: {c}, {m}'.format(p=FIXME_P, c=check_code, m=message))
+
+def correct_global_info(from_nc, to_nc, check_code, message):
+    print('{p}  correct_global_info() {v} code: {c}, {m}'.format(p=FIXME_P, c=check_code, m=message))
+
+def correct_global_version(from_nc, to_nc, check_code, message):
+    print('{p} correct_global_version() {v} code: {c}, {m}'.format(p=FIXME_P, c=check_code, m=message))
+
+
+def correct_variable_fatal(var_name, to_var, check_code, message, cf_name_map=None):
+    print('{p}   correct_variable_fatal() {v} code: {c}, {m}'.format(
+            p=FIXME_P, v=var_name, c=check_code, m=message))
+
+def correct_variable_error(var_name, to_var, check_code, message, cf_name_map=None):
+    debug = False
+    #debug = not debug
+    if check_code == '3.1' and 0 == message.find('Units'):
+        cf_units = cf_name_map.get_cf_units(var_name)
+        if units is not None:
+            attr_key = 'units'
+            to_var.setncattr('units', cf_units)
+            print("{p} {k} attribute is changed to {v}".format(
+                    p=ACTION_P, k=attr_key, v=cf_units))
+    else:
+        print('{p}  correct_global_error() {v} code: {c}, {m}'.format(
+                p=FIXME_P, v=var_name, c=check_code, m=message))
+
+def correct_variable_warn(var_name, to_var, check_code, message, cf_name_map):
+    debug = False
+    #debug = not debug
+    if check_code == '3':
+        nc_attrs = to_var.ncattrs()
+        standard_name = cf_name_map.get_cf_standard_name(var_name)
+        attr_key = 'standard_name'
+        has_standard_name = attr_key in nc_attrs
+        if standard_name is not None and not has_standard_name:
+            to_var.setncattr(attr_key, standard_name)
+            print("{p} The variable attribute {k} ({v}) is added".format(
+                    p=ACTION_P, k=attr_key, v=standard_name))
+            attr_key = 'units'
+            if standard_name == 'fire_area' and attr_key in nc_attrs:
+                nc_units = to_var.getncattr(attr_key)
+                cf_units = cf_name_map.get_cf_units(var_name)
+                if cf_units is not None and nc_units != cf_units:
+                    to_var.setncattr(attr_key, cf_units)
+                    print("{p} The variable attribute {k} is changed to {v}".format(
+                            p=ACTION_P, k=attr_key, v=cf_units))
+                
+        long_name = cf_name_map.get_cf_long_name(var_name)
+        if debug:
+            print("DEBUG has_standard_name {e}, standard_name: {s}, long_name: {l}".format(
+                    e=has_standard_name, s=standard_name, l=long_name))
+        if long_name is None and standard_name is None:
+            if debug:
+                print("  DEBUG    Fix me !!!  missing  standard_name and long_name for {n}".format(n=var_name))
+            long_name = var_name.lower()
+        attr_key = 'long_name'
+        if not has_standard_name and long_name is not None and \
+                0 < len(long_name) and attr_key not in nc_attrs:
+            to_var.setncattr(attr_key, long_name)
+            print("{p} The variable attribute {k} ({v}) is added".format(
+                    p=ACTION_P, k=attr_key, v=long_name))
+    else:
+        print('{p}  correct_global_warn() {v} code: {c}, {m}'.format(
+                p=FIXME_P, v=var_name, c=check_code, m=message))
+
+def correct_variable_info(var_name, to_var, check_code, message, cf_name_map=None):
+    print('{p}   correct_variable_info() {v} code: {c}, {m}'.format(
+            p=FIXME_P, v=var_name, c=check_code, m=message))
+
+def correct_variable_version(var_name, to_var, check_code, message, cf_name_map=None):
+    print('{p}   correct_variable_version() {v} code: {c}, {m}'.format(
+            p=FIXME_P, v=var_name, c=check_code, m=message))
+    
+
+class cf_tools:
+
+    @staticmethod
+    def copy_dimensions(from_nc, to_nc):
+        to_nc_dims = {}
+        for dim_name in from_nc.dimensions:
+            nc_dim = from_nc.dimensions[dim_name]
+            #print('dim', dim_name, from_nc.dimensions[dim_name])
+            to_nc_dims[dim_name] = to_nc.createDimension(dim_name, len(nc_dim))
+            
+        #print('to_nc_dims', to_nc_dims)
+        return to_nc_dims
+        
+    def copy_global_attributes(from_nc, to_nc):
+        to_nc_dims = []
+        for attr_name in from_nc.ncattrs():
+            #print('\t%s:' % attr_name, repr(from_nc.getncattr(attr_name)))
+            to_nc.setncattr(attr_name, from_nc.getncattr(attr_name))
+        
+    @staticmethod
+    def copy_variable(nc_out, from_var):
+        to_var = nc_out.createVariable(from_var.name, from_var.dtype, from_var.dimensions)
+        to_var[:] = from_var[:]
+        for attr_name in from_var.ncattrs():
+            to_var.setncattr(attr_name, from_var.getncattr(attr_name))
+        return to_var
+        
+    def create_nc_from(nc_name, from_nc):
+        out_nc = nc4_Dataset(nc_name, "w")
+        
+        to_nc_dims = cf_tools.copy_dimensions(from_nc, out_nc)
+        cf_tools.copy_global_attributes(from_nc, out_nc)
+        return out_nc
+        
+
+class CF_Names:
+
+    def __init__(self, cf_names_file=None):
+        if cf_names_file is not None and not os.path.exists(cf_names_file):
+            print("   WARN: The CF name configuration file () does not exist.".format(f=cf_names_file))
+            cf_names_file = None
+        if cf_names_file is None:
+            cf_names_file = os.environ.get('CF_NAME_CONFIG', WINDOW_CF_NAMES_CFG)
+        if os.path.exists(cf_names_file):
+            with open(cf_names_file, encoding='utf-8') as json_file:
+                self.cf_names_map = json.loads(json_file.read())
+                
+    def get_cf_attribute(self, key):
+        attribute = None
+        keys = key.split('.')
+        print('key: {k}, keys: {ks}'.format(k=key, ks=keys))
+        if 0 < len(keys):
+            #print('   key: {k}'.format(k=keys[0]))
+            #print('   key: XLAT: {v}'.format(v=self.cf_names_map.get(keys[0], None)))
+            attribute = self.cf_names_map.get(keys[0], None)
+            if attribute is not None and 1 < len(keys):
+                for key in keys[1:]:
+                    attribute = attribute.get(key, None)
+                    if attribute is None:
+                        break
+        return attribute
+
+    def get_cf_var_attribute(self, var_name, attr_key, convert_empty_to_none=True):
+        attribute = self.cf_names_map.get(var_name, None)
+        if attribute is not None:
+            attribute = attribute.get(attr_key, None)
+        else:
+            self._add_info("   ===== Fix me !!! WINDOW  missing {v} at json".format(v=var_name))
+        
+        if convert_empty_to_none and attribute is not None and 0 == len(attribute):
+            attribute = None
+        return attribute
+      
+    def get_cf_long_name(self, var_name, convert_empty_to_none=True):
+        return self.get_cf_var_attribute(var_name, 'long_name')
+        
+    def get_cf_standard_name(self, var_name, convert_empty_to_none=True):
+        return self.get_cf_var_attribute(var_name, 'standard_name')
+
+    def get_cf_units(self, var_name, convert_empty_to_none=True):
+        return self.get_cf_var_attribute(var_name, 'units')
+        
+
+class CF_Corrector:
+
+    #VARIABLE_IGNORE_CODES = {
+    #      '2.1': ["Filename must have .nc suffix"],
+    #    '2.6.1': ["No 'Conventions' attribute present"]
+    #}
+
+    GLOBAL_HANDLERS = {
+          "FATAL": correct_global_fatal,
+          "ERROR": correct_global_error,
+           "WARN": correct_global_warn,
+           "INFO": correct_global_info,
+        "VERSION": correct_global_version
+    }
+    
+    VARIABLE_HANDLERS = {
+          "FATAL": correct_variable_fatal,
+          "ERROR": correct_variable_error,
+           "WARN": correct_variable_warn,
+           "INFO": correct_variable_info,
+        "VERSION": correct_variable_version
+    }
+    
+    def __init__(self):
+        self.geogrid = None
+        self.cf_name_map = CF_Names()
+    
+    def correct(self, from_nc_name, results, to_nc_name, categories):
+        debug = False
+        #debug = not debug
+        global_results = results["global"]
+        variables_results = results["variables"]
+        if debug:
+            print('===============    global_results', global_results)
+            print('=============== variables_results', variables_results)
+        
+        from_nc = nc4_Dataset(from_nc_name, "r")
+        
+        to_nc   = cf_tools.create_nc_from(to_nc_name, from_nc)
+        
+        for category in categories:
+            if category == 'VERSION':
+                continue
+            category_handler = CF_Corrector.GLOBAL_HANDLERS[category]
+            category_results = global_results[category]
+            if 0 < len(category_results):
+                self.correct_global(category_handler, from_nc, to_nc,
+                        category_results)
+        
+        results_var_names = variables_results.keys()
+        for var_name in from_nc.variables.keys():
+            from_var = from_nc.variables[var_name]
+            to_var = cf_tools.copy_variable(to_nc, from_var)
+            if var_name not in results_var_names:
+                continue
+            cf_results = variables_results.get(var_name)
+            if cf_results is not None:
+                for category in categories:
+                    if category == 'VERSION':
+                        continue
+                    category_results = cf_results.get(category)
+                    if category_results is not None and 0 < len(category_results):
+                        category_handler = CF_Corrector.VARIABLE_HANDLERS[category]
+                        self.correct_variable(category_handler, var_name,
+                                to_var, category_results, self.cf_name_map)
+        
+    #def global_result_fatal(self, from_nc, results, to_nc):
+    #    global_results = results["global"]
+    #    variables_results = results["variables"]
+    #    print("global_results", global_results)
+    #    for key in variables_results.keys():
+    #        variable_results = variables_results.get(key)
+    #        if variable_results is None:
+    #            continue
+    #        print("variable_results", variable_results)
+
+    def correct_global(self, category_handler, from_nc, to_nc, results):
+        for result in results:
+            (check_code, message) = self.seprate_error_code(result)
+            category_handler(from_nc, to_nc, check_code, message)
+        
+    def correct_variable(self, category_handler, var_name,
+                                    to_var, results, cf_name_map):
+        for result in results:
+            (check_code, message) = self.seprate_error_code(result)
+            category_handler(var_name, to_var, check_code, message, cf_name_map)
+
+    def seprate_error_code(self, result):
+        offset = result.find(':')
+        if 0 < offset:
+            check_code = result[1:offset-1].strip()
+            message = result[offset+1:].strip()
+        else:
+            check_code = 'unknown'
+            message = result.strip()
+        
+        return (check_code, message)
+    def set_geogrid(self, geogrid):
+        self.geogrid = geogrid
+
+def make_output_names(in_files, output_dir):
+    input_index = 0
+    out_name_pattern = None
+    out_files = []
+    for file in in_files:
+        cur_output_name = os.path.basename(file)
+        if not cur_output_name.endswith(".nc"):
+            cur_output_name = cur_output_name + ".nc"
+        if output_dir is not None:
+            cur_output_name = os.path.join(output_dir, cur_output_name)
+        out_files.append(cur_output_name)
+    return out_files
+    
+def make_output_names_rev1(in_files, out_name, output_dir='.'):
+    input_index = 0
+    out_name_pattern = None
+    has_output_name = out_name is not None
+    if has_output_name and 1 <= len(in_files):
+        out_name_pattern = (out_name[0:-3] if out_name.endswith(".nc") else out_name) + "_{n}.nc"
+    out_files = []
+    for file in in_files:
+        cur_output_name = out_name
+        print("cur_output_name", cur_output_name)
+        if has_output_name:
+            if out_name_pattern is not None:
+                input_index += 1
+                cur_output_name = out_name_pattern.format(n=input_index)
+        else:
+            cur_output_name = os.path.basename(file)
+            if not cur_output_name.endswith(".nc"):
+                cur_output_name = cur_output_name + ".nc"
+        if output_dir is not None:
+            cur_output_name = os.path.join(output_dir, cur_output_name)
+        out_files.append(cur_output_name)
+    return out_files
+    
+def main():
+
+    parser = create_parser()
+    (options, args) = parser.parse_args()
+    my_args = []
+    skip_next = False
+    for arg in sys.argv[:]:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg in ("-o", "--output-name", "--out_dir", "--out-dir"):
+            skip_next = True
+            continue
+        my_args.append(arg)
+
+    (badc,coards,uploader,useFileName,standardName,areaTypes,
+            version,in_files,debug)=check_getargs(my_args)
+
+    actor = CF_Corrector()
+    checker = CFChecker(uploader=uploader, useFileName=useFileName,
+                        badc=badc, coards=coards, cfStandardNamesXML=standardName,
+                        cfAreaTypesXML=areaTypes, version=version, debug=debug)
+                        
+    out_files = make_output_names(in_files, options.out_dir)
+    for in_file, out_file in zip(in_files, out_files):
+        #try:
+            print("in_file, out_file", in_file, out_file)
+            results = checker.checker(in_file)
+            actor.correct(in_file, results, out_file, checker.categories)
+        #except ex:
+        #    print("Processing of file %s aborted due to error" % in_file)
+        #    print("ex", ex)
+
+    totals = checker.get_total_counts()
+
+    if debug:
+        print("")
+        print("Results dictionary:", checker.all_results)
+        print("")
+        print("Messages that were printed", checker.all_messages)
+
+    errs = totals["FATAL"] + totals["ERROR"]
+    if errs:
+        sys.exit(errs)
+    
+    warns = totals["WARN"]
+    if warns:
+        sys.exit(-warns)
+
+    sys.exit(0)
+
+
+#--------------------------
+# Main Program
+#--------------------------
+
+if __name__ == '__main__':
+
+    main()
+
