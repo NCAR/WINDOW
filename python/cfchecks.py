@@ -427,9 +427,11 @@ class CFChecker:
         is therefore stored, but primarily a fatal error message aborts the checking of the file,
         raising a FatalCheckerError.  The caller can of course trap this and not exit.
         """
-        self._add_message("FATAL", *args, **kwargs)
-        self.show_counts(append_to_all_messages=True)
-        raise FatalCheckerError
+        if 0 < len(args):
+            self._add_message("FATAL", *args, **kwargs)
+            if 0 > args[0].find("must have .nc suffix"):
+                self.show_counts(append_to_all_messages=True)
+                raise FatalCheckerError
         
   def _add_error(self, *args, **kwargs):
         """
@@ -1836,6 +1838,10 @@ class CFChecker:
           else:
               # units must be recognizable by udunits package
               try:
+                  if units == "seconds since 00:00:00 UTC 1 January 1970":
+                    print("=== Correct chkUnits(): Invalid unit: {u}!!!".format(u=units))
+                    self._add_info("Time unit [{u}] is not support by udunits!!!".format(u=units))
+                    units = "seconds since 1970-01-01 00:00:00 UTC"
                   varUnit = Units(units)
               except ValueError:
                   self._add_error("Invalid units: %s" % units,  varName, code="3.1")
