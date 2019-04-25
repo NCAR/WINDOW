@@ -39,12 +39,12 @@ sys.dont_write_bytecode = True                                                  
 # --- End Module Configurations --- #
 
 # --- Globals --- #
-BASE_DIR = os.path.join('C:','Users','ksampson','Desktop','WINDOW_data','CF_Converter')
-if not os.path.exists(BASE_DIR):
-    BASE_DIR = os.getcwd()
-in_nc = os.path.join(BASE_DIR, 'ncar_les_geo_em.d01.nc')
-projdir = BASE_DIR
-out_nc = os.path.join(projdir, os.path.basename(in_nc).replace('.nc', '_spatial.nc'))
+#BASE_DIR = os.path.join('C:','Users','ksampson','Desktop','WINDOW_data','CF_Converter')
+#if not os.path.exists(BASE_DIR):
+#    BASE_DIR = os.getcwd()
+#in_nc = os.path.join(BASE_DIR, 'ncar_les_geo_em.d01.nc')
+#projdir = BASE_DIR
+#out_nc = os.path.join(projdir, os.path.basename(in_nc).replace('.nc', '_spatial.nc'))
 geogridVariable = 'HGT_M'                                                       # 2D Variable in the GEOGRID file to use in defining the grid
 processing_notes_SM = 'Created for testing WINDOW AIR converter'                # Notes section appended to the output netCDF file as a global attribute
 XYmap = {'x': 'west_east', 'y': 'south_north'}                                  # Dictionary to define mapping between (x,y) and input file dimension names
@@ -309,7 +309,9 @@ def getXY(GeoTransformStr, array, flipY=True):
     return x, y
 
 
-def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransformStr, Xsize, Ysize, xarr, yarr, addLatLon=False, addVars=[], WKT_Esri="", WKT_GDAL="", addData=False):
+def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransformStr,
+                     Xsize, Ysize, xarr, yarr, addLatLon=False, addVars=[],
+                     WKT_Esri="", WKT_GDAL="", addData=False):
     """This function will create the netCDF file with CF conventions for the grid
     description. The output NetCDF will have the XMAP/YMAP created for the x and
     y variables and the LATITUDE and LONGITUDE variables populated with the selected
@@ -375,6 +377,11 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
         # Build coordinate reference system variable
         rootgrp = add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, WKT_Esri, WKT_GDAL, GeoTransformStr)
 
+    if 0 < len(WKT_Esri):
+        rootgrp.setncattr('WINDOW_esri_pe_string', WKT_Esri)
+    rootgrp.setncattr('WINDOW_grid_mapping', CoordSysVarName)
+    rootgrp.setncattr('WINDOW_CoordinateSystems', CoordSysVarName)
+
     # For prefilling additional variables and attributes on the same 2D grid, given as a list [[<varname>, <vardtype>, <long_name>],]
     for varinfo in addVars:
         ncvar = rootgrp.createVariable(varinfo[0], varinfo[1], ('y', 'x'))
@@ -388,6 +395,7 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
     var_x[:] = xarr[:]
     del yarr, xarr
     print('    Coordinate variables and variable attributes set after {0: 8.2f} seconds.'.format(time.time()-tic1))
+
 
     if addLatLon == True:
 
@@ -445,13 +453,52 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
     print('    netCDF global attributes set after {0: 8.2f} seconds.'.format(time.time()-tic1))
     return rootgrp
 
+try:
+    #from osgeo import ogr, osr, gdal
+    from osgeo import gdal
+except:
+    sys.exit('ERROR: cannot find GDAL/OGR modules')
+    
+# example GDAL error handler function
+def gdal_error_handler(err_class, err_num, err_msg):
+    errtype = {
+            gdal.CE_None:'None',
+            gdal.CE_Debug:'Debug',
+            gdal.CE_Warning:'Warning',
+            gdal.CE_Failure:'Failure',
+            gdal.CE_Fatal:'Fatal'
+    }
+    err_msg = err_msg.replace('\n',' ')
+    err_class = errtype.get(err_class, 'None')
+    print('Error Number: %s' % (err_num))
+    print('Error Type: %s' % (err_class))
+    print('Error Message: %s' % (err_msg))
+
 if __name__ == '__main__':
     tic = time.time()
 
     # Gather all necessary parameters
-    #in_nc = sys.argv[1]
-    #out_nc =  = sys.argv[2]
+    if 1 == len(sys.argv):
+        print(" Usage {p} input_geogrid_file [output_geogrid_file]".format(p=sys.argv[0]))
+        print("      input_geogrid_file: input geogrid file name, required")
+        print("     output_geogrid_file: output geogrid file name, optional, default: <input>_spatial.nc")
+        sys.exit(-1);
+    
+    in_nc = sys.argv[1]
+    if not os.path.exists(in_nc):
+        print(" ==ERROR == The input geogrid file [{i}] does not exist!!!".format(i=in_nc))
+        print("            Quit...")
+        sys.exit(-2);
+    
+    projdir = os.path.dirname(in_nc)
+    if 2 < len(sys.argv):
+        out_nc = sys.argv[2]
+    else:
+        out_nc = os.path.join(projdir, os.path.basename(in_nc).replace('.nc', '_spatial.nc'))
 
+    # install error handler
+    gdal.PushErrorHandler(gdal_error_handler)
+    
     # Get projection information as an OSR SpatialReference object from Geogrid File
     proj, DX, DY, x00, y00, map_pro = Read_GEOGRID_for_SRS(in_nc)
 
@@ -495,4 +542,7 @@ if __name__ == '__main__':
     rootgrp.processing_notes = processing_notes_SM
     rootgrp.close()
     del rootgrp, rootgrp_in
-    print('Process completed in {0: 3.2f} seconds.'.format(time.time()-tic))
+    
+    #uninstall error handler
+    gdal.PopErrorHandler()
+    print('Process completed in {t: 3.2f} seconds [{o}].'.format(t=(time.time()-tic), o=out_nc))
