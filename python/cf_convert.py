@@ -20,15 +20,18 @@ WARN_P   = "    WARN:"
 ACTION_P = "  ACTION]"
 FIXME_P  = "  == FIX ME =="
 
+OPT_GIS_INPUT_Required = False
+
 def create_parser():
     usage_str = "%prog [options] "
     parser = OptionParser(usage = usage_str)
-    #parser.add_option("-o", "--output-name", "--output_name", dest="out_name", default=None,
-    #        help=" output name. must have nc extension, optional")
+    parser.add_option("-o", "--output-name", "--output_name", dest="out_name", default=None,
+            help=" output name. must have nc extension, optional")
     parser.add_option("--out_dir", "--out-dir", dest="out_dir", default='.',
             help=" output directory - optional")
-    parser.add_option("--geogrid", "--geogrid-nc", dest="geogrid_nc", default=None,
+    parser.add_option("--gis_input", "--gis-input", dest="gis_input_nc", default=None,
             help=" output directory - optional")
+    #Options for CFChecker
     parser.add_option('-a','--area_types', dest="areatypes", default=None)
     parser.add_option('-b','--badc', dest="badc", default=None)
     parser.add_option('-c','--coards', dest="coards", default=None)
@@ -50,21 +53,20 @@ def correct_global_error(from_nc, to_nc, check_code, message):
     print('{p}   correct_global_error() code: {c}, {m}'.format(p=FIXME_P, c=check_code, m=message))
 
 def correct_global_warn(from_nc, to_nc, check_code, message):
-    if check_code == '2.6.1':
+    if check_code == '2.6.1' or check_code == '(2.6.1':
         attr_key = 'Conventions'
         attr_value = vn1_6.__str__()
         to_nc.setncattr(attr_key, attr_value)
         print("{p} The global attribute {k} ({v}) is added".format(
                 p=ACTION_P, k=attr_key, v=attr_value))
     else:
-        print('{p}  correct_global_warn() code: {c}, {m}'.format(p=FIXME_P, c=check_code, m=message))
+        print('{p}  correct_global_warn() code: {c}, message: {m}'.format(p=FIXME_P, c=check_code, m=message))
 
 def correct_global_info(from_nc, to_nc, check_code, message):
-    print('{p}  correct_global_info() {v} code: {c}, {m}'.format(p=FIXME_P, c=check_code, m=message))
+    print('{p}  correct_global_info() code: {c}, message: {m}'.format(p=FIXME_P, c=check_code, m=message))
 
 def correct_global_version(from_nc, to_nc, check_code, message):
-    print('{p} correct_global_version() {v} code: {c}, {m}'.format(p=FIXME_P, c=check_code, m=message))
-
+    print('{p} correct_global_version() code: {c}, message: {m}'.format(p=FIXME_P, c=check_code, m=message))
 
 def correct_variable_fatal(var_name, to_var, check_code, message, cf_name_map=None):
     print('{p}   correct_variable_fatal() {v} code: {c}, {m}'.format(
@@ -151,11 +153,16 @@ class nc_tools:
             #print('\t%s:' % attr_name, repr(from_nc.getncattr(attr_name)))
             to_nc.setncattr(attr_name, from_nc.getncattr(attr_name))
         
+    SKIP_Attrs= [ "_FillValue"]
     @staticmethod
     def copy_variable(nc_out, from_var):
         to_var = nc_out.createVariable(from_var.name, from_var.dtype, from_var.dimensions)
         to_var[:] = from_var[:]
         for attr_name in from_var.ncattrs():
+            if attr_name in nc_tools.SKIP_Attrs:
+                print( " skipped attribute {v}: {a}={av}".format(
+                    a=attr_name, v=from_var.name, av=from_var.getncattr(attr_name)))
+                continue
             to_var.setncattr(attr_name, from_var.getncattr(attr_name))
         return to_var
         
@@ -200,7 +207,7 @@ class CF_Names:
         if attribute is not None:
             attribute = attribute.get(attr_key, None)
         else:
-            self._add_info("   ===== Fix me !!! WINDOW  missing {v} at json".format(v=var_name))
+            print("   ===== Fix me !!! WINDOW  missing {v} at json".format(v=var_name))
         
         if convert_empty_to_none and attribute is not None and 0 == len(attribute):
             attribute = None
@@ -339,20 +346,21 @@ class CF_Corrector:
 
     def correct_global(self, category_handler, from_nc, to_nc, results):
         for result in results:
-            (check_code, message) = self.seprate_error_code(result)
+            (check_code, message) = self.separate_error_code(result)
             category_handler(from_nc, to_nc, check_code, message)
         
     def correct_variable(self, category_handler, var_name,
                                     to_var, results, cf_name_map):
         for result in results:
-            (check_code, message) = self.seprate_error_code(result)
+            (check_code, message) = self.separate_error_code(result)
             category_handler(var_name, to_var, check_code, message, cf_name_map)
 
-    def seprate_error_code(self, result):
+    def separate_error_code(self, result):
         offset = result.find(':')
-        if 0 < offset:
-            check_code = result[1:offset-1].strip()
+        if 0 < offset and 10 > offset:
+            check_code = result[0:offset-1].strip()
             message = result[offset+1:].strip()
+            
         else:
             check_code = 'unknown'
             message = result.strip()
@@ -368,18 +376,18 @@ class CF_Corrector:
 class CF_aux_tools:
 
     @staticmethod
-    def collect_gis_attributes(geogrid_name):
+    def collect_gis_attributes(gis_input_name):
         gis_attrs = {}
-        geogrid_nc = nc4_Dataset(geogrid_name, "r")
-        global_attrs = geogrid_nc.ncattrs()
+        gis_input_nc = nc4_Dataset(gis_input_name, "r")
+        global_attrs = gis_input_nc.ncattrs()
         for global_attr in global_attrs:
             if global_attr.startswith('WINDOW_'):
-                gis_attrs[global_attr] = geogrid_nc.getncattr(global_attr)
+                gis_attrs[global_attr] = gis_input_nc.getncattr(global_attr)
         grid_mapping_key = 'WINDOW_grid_mapping'
         if grid_mapping_key in gis_attrs.keys():
             grid_mapping_var = gis_attrs[grid_mapping_key]
             
-        del geogrid_nc 
+        del gis_input_nc 
         return gis_attrs
         
     @staticmethod
@@ -400,42 +408,19 @@ class CF_aux_tools:
         out_files = CF_aux_tools.make_output_names(in_files, output_dir)
         return out_files
     
-    # def make_output_names_rev1(in_files, out_name, output_dir='.'):
-    #     input_index = 0
-    #     out_name_pattern = None
-    #     has_output_name = out_name is not None
-    #     if has_output_name and 1 <= len(in_files):
-    #         out_name_pattern = (out_name[0:-3] if out_name.endswith(".nc") else out_name) + "_{n}.nc"
-    #     out_files = []
-    #     for file in in_files:
-    #         cur_output_name = out_name
-    #         print("cur_output_name", cur_output_name)
-    #         if has_output_name:
-    #             if out_name_pattern is not None:
-    #                 input_index += 1
-    #                 cur_output_name = out_name_pattern.format(n=input_index)
-    #         else:
-    #             cur_output_name = os.path.basename(file)
-    #             if not cur_output_name.endswith(".nc"):
-    #                 cur_output_name = cur_output_name + ".nc"
-    #         if output_dir is not None:
-    #             cur_output_name = os.path.join(output_dir, cur_output_name)
-    #         out_files.append(cur_output_name)
-    #     return out_files
-    
 def main():
 
     parser = create_parser()
     (options, args) = parser.parse_args()
     
-    #Filter arguments whcih are not for cfchecks
+    #Filter out arguments which are not for cfchecks
     my_args = []
     skip_next = False
     for arg in sys.argv[:]:
         if skip_next:
             skip_next = False
             continue
-        if arg in ("-o", "--output-name", "--out_dir", "--out-dir", "--geogrid", "--geogrid-nc"):
+        if arg in ("-o", "--output-name", "--out_dir", "--out-dir", "--gis-input", "--gis-input"):
             skip_next = True
             continue
         my_args.append(arg)
@@ -447,18 +432,26 @@ def main():
     checker = CFChecker(uploader=uploader, useFileName=useFileName,
                         badc=badc, coards=coards, cfStandardNamesXML=standardName,
                         cfAreaTypesXML=areaTypes, version=version, debug=debug)
-                        
-    out_files = CF_aux_tools.make_output_names(in_files, options.out_dir)
-    if options.geogrid_nc is None:
-        print("{p} The geogrid file {g} is missing. Please set it with --geogrid".format(
-                p=ERROR_P))
-        sys.exit(-1)
+    if options.out_name is None:
+        out_files = CF_aux_tools.make_output_names(in_files, options.out_dir)
     else:
-        if not os.path.exists(options.geogrid_nc):
-            print("{p} The geogrid file {g} does not exist. Ignored GIS attributes".format(
-                    p=WARN_P, g=options.geogrid_nc))
+        if 1 < len(in_files):
+            print('{p} The "-o" or "--output-name" options is not allowed for multiple input files.\nPlease set --out-dir option'.format(
+                    p=ERROR_P))
+            sys.exit(-1)
+        out_files = [options.out_name]
+    
+    if options.gis_input_nc is None:
+        print("{p} The GIS input file {g} is missing. Please set it with --gis-input".format(
+                p=ERROR_P))
+        if OPT_GIS_INPUT_Required:
+            sys.exit(-1)
+    else:
+        if not os.path.exists(options.gis_input_nc):
+            print("{p} The GIS input file {g} does not exist. Ignored GIS attributes".format(
+                    p=WARN_P, g=options.gis_input_nc))
         else:
-            gis_attrs = CF_aux_tools.collect_gis_attributes(options.geogrid_nc)
+            gis_attrs = CF_aux_tools.collect_gis_attributes(options.gis_input_nc)
             actor.set_gis_attrs(gis_attrs)
     for in_file, out_file in zip(in_files, out_files):
         #try:
