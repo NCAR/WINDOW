@@ -1,0 +1,142 @@
+This tool inserts the GIS attributes and CF compliant by using python3.
+If the GIS attributes are not available, it can be used only for CF compliant.
+The standard name, the long name, and units can be configured at "cf_names.json."
+If the standard name and the long name are not available from "cf_names.json",
+the long name is generated from the original name by changing it to lowercase.
+
+
+Step 1. Preparing GIS information
+
+        Generate a NetCDF file with global attributes to support GIS.
+
+        The global attributes for GIS begin with "WINDOW_" and they are saved
+        without "WINDOW_" into the target output.
+
+        "CF_Gridded.py" is called to add the GIS attributes into geogrid NetCDF files.
+        
+        If the geogrid NetCDF does not exist, or different data formats,
+        the NetCDF generator with GIS attributes should be added to support them.
+          
+        The global attributes for GIS:
+          - WINDOW_esri_pe_string
+          - WINDOW_grid_mapping
+          - WINDOW_CoordinateSystems
+          - WINDOW_append_vars
+          
+          Note: If the global attribute "WINDOW_append_vars" exists,
+                those variables will be copied into the output NetCDF (not implemented yet)
+        
+        For example;
+           WINDOW_esri_pe_string = "PROJCS[\"Lambert_Conformal_Conic\",GEOGCS[\"GCS_WRF_Sphere\",DATUM[\"D_Sphere\",SPHEROID[,6370000,0]],PRIMEM[\"Greenwich\",0],UNIT[\"Degree\",0.017453292519943295]],PROJECTION[\"Lambert_Conformal_Conic\"],PARAMETER[\"standard_parallel_1\",37.79999923706055],PARAMETER[\"standard_parallel_2\",37.79999923706055],PARAMETER[\"latitude_of_origin\",37.80000305175781],PARAMETER[\"central_meridian\",-106.1500015258789],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"Meter\",1]]" ;
+           WINDOW_grid_mapping = "crs" ;
+           WINDOW_CoordinateSystems = "crs" ;
+        
+        Python package dependency:
+            - netCDF4 (from Unidata)
+            - numpy
+            - GDAL (ogr & osr)
+            
+Step 2. Inserting GIS attributes into wrfout files and/or Making it CF compliant
+
+        This is based on the output of the step 1 and the CF checker which is
+        developed by the third party (Rosalyn Hatche).
+    
+        The main script "cf_convert.py" is called to add the GIS attributes and
+        to make CF compliant NetCDF output.
+        
+        The CF compliant is supported by calling the CF checker (cfchecks.py).
+        "cf_convert.py" gets the CF checking results as objects (in memory)
+        by calling "cfchecks.py" and inserts the missing attributes with parsing
+        the results. The missing standard name, long name, and units are configured
+        at "cf_names.json" as JSON format. If the standard name and the long name
+        are not configured at cf_names.json, the lowercased original variable name
+        will be saved as the long name.
+        
+        GIS attributes are inserted from the output of step 1 or any other NetCDF file
+        which contains the pre-defined GIS global attributes ("WINDOW_*").
+        
+        if --gis-input option is missing or the GIS input file does not exist,
+        only CF compliant part will be done without GIS attributes.
+
+        
+        Examples:
+        
+        python3 cf_convert.py -o new_wrfout_d01_2016-07-09_20_00_00 --gis-input geo_em.d01_gis.nc data/wrfout_d01_2016-07-09_20_00_00
+        
+            Input file is "data/wrfout_d01_2016-07-09_20_00_00".
+            The GIS information comes from geo_em.d01_gis.nc.
+            The output is saved as "new_wrfout_d01_2016-07-09_20_00_00.nc".
+            Note: ".nc" is appended if the output name does not have ".nc"
+        
+        python3 cf_convert.py --out-dir output  --gis-input geo_em.d01_gis.nc data/*
+        
+            Input files are all files at "data" sub directory.
+            The GIS information come from geo_em.d01_gis.nc
+            Output files are generated at "output" directory.
+                The input file name becomes the output file name
+                The extension ".nc" is appended to the output if missing.
+                The output directory should be exist.
+        
+        cf_convert.py --out-dir output  --gis-input geo_em.d01_gis.nc data/wrf*d01*
+        
+            Input files are the files with "wrf*d01*" pattern at "data" sub directory.
+            Output files are generated at "output" directory.
+                The output directory should be exist.
+            The GIS attributes come from geo_em.d01_gis.nc
+            I did not test if this works from cron.
+        
+        python3 cf_convert.py -o new_wrfout_d01_2016-07-09_20_00_00 data/wrfout_d01_2016-07-09_20_00_00
+        
+            Note: --gis-input is missing
+            Input file is "data/wrfout_d01_2016-07-09_20_00_00" and will be
+            saved as "new_wrfout_d01_2016-07-09_20_00_00.nc" without
+            having GIS attributes. So this tool can be used to make CF
+            compliant NetCDF output
+            Note: --gis-input is given but the file does not exist,
+                  then it will be the same result without --gis-input option.
+        
+        python3 cf_convert.py -o new_wrfout_d01_2016-07-09_20_00_00 --gis-input geo_em.d01_gis.nc data/*
+        
+            Error because the multiple input files, but only one output file name.
+            
+        
+        There are two groups of arguments: one for CF checker (cfchecks.py)
+        and the other for cf_convert.py (CF compliant and GIS support).
+        
+        Following arguments are for "cf_convert.py":
+            -h, --help            show this help message and exit
+            -o OUT_NAME, --output-name=OUT_NAME, --output_name=OUT_NAME
+                                   output name. must have nc extension, optional
+            --out_dir=OUT_DIR, --out-dir=OUT_DIR
+                                   output directory - optional
+            --gis_input=GIS_INPUT_NC, --gis-input=GIS_INPUT_NC
+                                   output directory - optional
+            -d                     Enable debug - optional
+        
+        
+        Following arguments are for CF checkers
+            -a or --area_types:
+                  the location of the CF area types table (xml)
+
+            -s or --cf_standard_names:
+                  the location of the CF standard name table (xml)
+
+            -h or --help: Prints this help text.
+
+            -v or --version: CF version to check against, use auto to auto-detect the file version.
+            
+            -b BADC, --badc=BADC
+            -c COARDS, --coards=COARDS
+            -l UPLOADER, --uploader=UPLOADER
+            -n USEFILENAME, --noname=USEFILENAME
+            
+            file1 [file2...]  files to be checked
+        
+        
+        Python package dependency for cf_convert.py:
+            - netCDF4 (from Unidata)
+        
+        Python package dependency for cfchecks.py:
+            - netCDF4 (from Unidata)
+            - cfunits
+        
