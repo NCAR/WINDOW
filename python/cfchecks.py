@@ -45,7 +45,8 @@ from netCDF4 import Variable as netCDF4_Variable
 from cfunits import Units
 
 # Version is imported from the package module cfchecker/__init__.py
-from cfchecker import __version__
+#from cfchecker import __version__
+__version__ = '3.0.5'
 
 STANDARDNAME = 'http://cfconventions.org/Data/cf-standard-names/current/src/cf-standard-name-table.xml'
 AREATYPES = 'http://cfconventions.org/Data/area-type-table/current/src/area-type-table.xml'
