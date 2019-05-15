@@ -1,8 +1,14 @@
 This tool inserts the GIS attributes and CF compliant by using python3.
 If the GIS attributes are not available, it can be used only for CF compliant.
-The standard name, the long name, and units can be configured at "cf_names.json."
+The standard name, the long name, and units can be configured at "cf_names.json".
 If the standard name and the long name are not available from "cf_names.json",
 the long name is generated from the original name by changing it to lowercase.
+
+"cf_names.json" is expected to be at the current working directory. User can
+configures the file location and filenamethe with the environment variable
+'CF_NAME_CONFIG'.
+        export CF_NAME_CONFIG="<my_poth>/<my_json_name>
+        setenv CF_NAME_CONFIG "<my_poth>/<my_json_name>
 
 
 Step 1. Preparing GIS information
@@ -35,6 +41,7 @@ Step 1. Preparing GIS information
             - netCDF4 (from Unidata)
             - numpy
             - GDAL (ogr & osr)
+            - cfunits (or cf_units): udunits should be installed before cfunits.
             
 Step 2. Inserting GIS attributes into wrfout files and/or Making it CF compliant
 
@@ -138,5 +145,8 @@ Step 2. Inserting GIS attributes into wrfout files and/or Making it CF compliant
         
         Python package dependency for cfchecks.py:
             - netCDF4 (from Unidata)
-            - cfunits
+            - cfunits (or cf_units)
         
+Setup at Cheyenne (the default is python3):
+        module load python
+        ncar_pylib
