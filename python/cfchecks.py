@@ -42,7 +42,11 @@ import re, string, types, numpy
 
 from netCDF4 import Dataset as netCDF4_Dataset
 from netCDF4 import Variable as netCDF4_Variable
-from cfunits import Units
+try:
+    from cfunits import Units
+except ImportError as ex:
+    print("    INFO] cfunits package is not available. Trying cf_units package...")
+    from cf_units import Unit as Units
 
 # Version is imported from the package module cfchecker/__init__.py
 #from cfchecker import __version__
@@ -137,7 +141,7 @@ vn1_4 = CFVersion((1, 4))
 vn1_5 = CFVersion((1, 5))
 vn1_6 = CFVersion((1, 6))
 cfVersions = [vn1_0, vn1_1, vn1_2, vn1_3, vn1_4, vn1_5, vn1_6]
-print(cfVersions)
+#print(cfVersions)
 newest_version = max(cfVersions)
 
 
