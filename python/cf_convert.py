@@ -11,7 +11,8 @@ from netCDF4 import Variable as nc4_Variable
 from cfchecks import CFChecker, vn1_6
 from cfchecks import getargs as check_getargs
 
-WINDOW_CF_NAMES_CFG='cf_names.json'
+ENV_CF_NAMES_CFG    = 'CF_NAME_CONFIG'
+WINDOW_CF_NAMES_CFG = 'cf_names.json'
 
 DEBUG_P  = "   DEBUG]"
 ERROR_P  = "   ERROR:"
@@ -19,6 +20,7 @@ INFO_P   = "    INFO]"
 WARN_P   = "    WARN:"
 ACTION_P = "  ACTION]"
 FIXME_P  = "  == FIX ME =="
+CHECKME_P  = "  -- CHECK ME --"
 
 OPT_GIS_INPUT_Required = False
 
@@ -47,12 +49,18 @@ def create_parser():
 
 
 def correct_global_fatal(from_nc, to_nc, check_code, message):
-    print('{p}   correct_global_fatal() code: {c}, {m}'.format(p=FIXME_P, c=check_code, m=message))
+    method_name = "correct_global_fatal()"
+    if check_code != '2.1': # (2.1) the netcdf must has ".nc" extension.
+        print('{p}  {n} check the global config for code {c}, {m}'.format(
+                p=FIXME_P, n=method_name, c=check_code, m=message))
 
 def correct_global_error(from_nc, to_nc, check_code, message):
-    print('{p}   correct_global_error() code: {c}, {m}'.format(p=FIXME_P, c=check_code, m=message))
+    method_name = "correct_global_error()"
+    print('{p}  {n} check the global config for code {c}\n\t{m}'.format(
+            p=FIXME_P, n=method_name, c=check_code, m=message))
 
 def correct_global_warn(from_nc, to_nc, check_code, message):
+    method_name = "correct_global_warn()"
     if check_code == '2.6.1' or check_code == '(2.6.1':
         attr_key = 'Conventions'
         attr_value = vn1_6.__str__()
@@ -60,35 +68,48 @@ def correct_global_warn(from_nc, to_nc, check_code, message):
         print("{p} The global attribute {k} ({v}) is added".format(
                 p=ACTION_P, k=attr_key, v=attr_value))
     else:
-        print('{p}  correct_global_warn() code: {c}, message: {m}'.format(p=FIXME_P, c=check_code, m=message))
+        print('{p}  {n} check the global config for code {c}\n\t{m}'.format(
+                p=FIXME_P, n=method_name, c=check_code, m=message))
 
 def correct_global_info(from_nc, to_nc, check_code, message):
-    print('{p}  correct_global_info() code: {c}, message: {m}'.format(p=FIXME_P, c=check_code, m=message))
+    method_name = "correct_global_info()"
+    print('{p}  {n} check the global config for code {c}\n\t{m}'.format(
+            p=CHECKME_P, n=method_name, c=check_code, m=message))
 
 def correct_global_version(from_nc, to_nc, check_code, message):
-    print('{p} correct_global_version() code: {c}, message: {m}'.format(p=FIXME_P, c=check_code, m=message))
-
+    method_name = "correct_global_version()"
+    print('{p}  {n} check the global config for code {c}\n\t{m}'.format(
+            p=FIXME_P, n=method_name, c=check_code, m=message))
+    
 def correct_variable_fatal(var_name, to_var, check_code, message, cf_name_map=None):
-    print('{p}   correct_variable_fatal() {v} code: {c}, {m}'.format(
-            p=FIXME_P, v=var_name, c=check_code, m=message))
+    method_name = "correct_variable_fatal()"
+    print('{p}  {n} check the variable {v} for code: {c}\n\t{m}'.format(
+            p=FIXME_P, n=method_name, v=var_name, c=check_code, m=message))
 
 def correct_variable_error(var_name, to_var, check_code, message, cf_name_map=None):
     #debug = False
     #debug = not debug
+    method_name = "correct_variable_error()"
     if check_code == '3.1' and 0 == message.find('Units'):
-        cf_units = cf_name_map.get_cf_units(var_name)
+        cf_units = None
+        if cf_name_map is not None and len(cf_name_map):
+            cf_units = cf_name_map.get_cf_units(var_name)
         if cf_units is not None:
             attr_key = 'units'
             to_var.setncattr('units', cf_units)
             print("{p} {k} attribute is changed to {v}".format(
                     p=ACTION_P, k=attr_key, v=cf_units))
+        else:
+            print("{p}  {n} {k} attribute for {v} is not available".format(
+                    p=INFO_P, n=method_name, k=attr_key, v=var_name))
     else:
-        print('{p}  correct_global_error() {v} code: {c}, {m}'.format(
-                p=FIXME_P, v=var_name, c=check_code, m=message))
+        print('{p}  {n} check the variable {v} for code: {c}\n\t{m}'.format(
+                p=FIXME_P, n=method_name, v=var_name, c=check_code, m=message))
 
 def correct_variable_warn(var_name, to_var, check_code, message, cf_name_map):
     debug = False
     #debug = not debug
+    method_name = "correct_variable_warn()"
     if check_code == '3':
         nc_attrs = to_var.ncattrs()
         standard_name = cf_name_map.get_cf_standard_name(var_name)
@@ -109,11 +130,12 @@ def correct_variable_warn(var_name, to_var, check_code, message, cf_name_map):
                 
         long_name = cf_name_map.get_cf_long_name(var_name)
         if debug:
-            print("DEBUG has_standard_name {e}, standard_name: {s}, long_name: {l}".format(
-                    e=has_standard_name, s=standard_name, l=long_name))
+            print("{p} has_standard_name {e}, standard_name: {s}, long_name: {l}".format(
+                    p=DEBUG_P, e=has_standard_name, s=standard_name, l=long_name))
         if long_name is None and standard_name is None:
             if debug:
-                print("  DEBUG    Fix me !!!  missing  standard_name and long_name for {n}".format(n=var_name))
+                print("{p}    Fix me !!!  missing the standard_name and long_name for {n}".format(
+                        p=DEBUG_P, n=var_name))
             long_name = var_name.lower()
         attr_key = 'long_name'
         if not has_standard_name and long_name is not None and \
@@ -122,16 +144,32 @@ def correct_variable_warn(var_name, to_var, check_code, message, cf_name_map):
             print("{p} The variable attribute {k} ({v}) is added".format(
                     p=ACTION_P, k=attr_key, v=long_name))
     else:
-        print('{p}  correct_global_warn() {v} code: {c}, {m}'.format(
-                p=FIXME_P, v=var_name, c=check_code, m=message))
+        print('{p}  {n} check the variable {v} for code: {c}\n\t{m}'.format(
+                p=FIXME_P, n=method_name, v=var_name, c=check_code, m=message))
 
 def correct_variable_info(var_name, to_var, check_code, message, cf_name_map=None):
-    print('{p}   correct_variable_info() {v} code: {c}, {m}'.format(
-            p=FIXME_P, v=var_name, c=check_code, m=message))
+    method_name = "correct_variable_info()"
+    if check_code == '3.1' and 0 == message.find('Units'):
+        attr_key = 'units'
+        is_not_corrected = True
+        if cf_name_map is not None and len(cf_name_map):
+            cf_units = cf_name_map.get_cf_units(var_name)
+            if cf_units is not None:
+                to_var.setncattr('units', cf_units)
+                is_not_corrected = False
+                print("{p} {k} attribute is changed to {v}".format(
+                        p=ACTION_P, k=attr_key, v=cf_units))
+        if is_not_corrected:
+            print("{p}  {n} {k} attribute for {v} is not available".format(
+                    p=INFO_P, n=method_name, k=attr_key, v=var_name))
+    else:
+        print('{p}  {n} check the variable {v} for code: {c}\n\t{m}'.format(
+                p=CHECKME_P, n=method_name, v=var_name, c=check_code, m=message))
 
 def correct_variable_version(var_name, to_var, check_code, message, cf_name_map=None):
-    print('{p}   correct_variable_version() {v} code: {c}, {m}'.format(
-            p=FIXME_P, v=var_name, c=check_code, m=message))
+    method_name = "correct_variable_version()"
+    print('{p}  {n} check the variable {v} for code: {c}\n\t{m}'.format(
+            p=FIXME_P, n=method_name, v=var_name, c=check_code, m=message))
     
 
 class nc_tools:
@@ -178,14 +216,22 @@ class nc_tools:
 class CF_Names:
 
     def __init__(self, cf_names_file=None):
+        method_name = "CF_Names.__init__()"
         if cf_names_file is not None and not os.path.exists(cf_names_file):
             print("   WARN: The CF name configuration file () does not exist.".format(f=cf_names_file))
             cf_names_file = None
         if cf_names_file is None:
-            cf_names_file = os.environ.get('CF_NAME_CONFIG', WINDOW_CF_NAMES_CFG)
+            cf_names_file = os.environ.get(ENV_CF_NAMES_CFG, WINDOW_CF_NAMES_CFG)
         if os.path.exists(cf_names_file):
             with open(cf_names_file, encoding='utf-8') as json_file:
                 self.cf_names_map = json.loads(json_file.read())
+        else:
+            self.cf_names_map = {}
+            print("{p} {m} The configuration file '{f}' is missing which contains the standard and long names.".format(
+                    p=INFO_P, m=method_name, f=WINDOW_CF_NAMES_CFG))
+            print("\tIt should be in the current working directory or specified by using the environment variable '{e}'.".format(
+                    e=ENV_CF_NAMES_CFG))
+        self.missing_var_list = []
                 
     def get_cf_attribute(self, key):
         attribute = None
@@ -206,8 +252,9 @@ class CF_Names:
         attribute = self.cf_names_map.get(var_name, None)
         if attribute is not None:
             attribute = attribute.get(attr_key, None)
-        else:
-            print("   ===== Fix me !!! WINDOW  missing {v} at json".format(v=var_name))
+        elif var_name not in self.missing_var_list:
+            self.missing_var_list.append(var_name)
+            print("{p} get_cf_var_attribute() missing {v} at json".format(p=WARN_P, v=var_name))
         
         if convert_empty_to_none and attribute is not None and 0 == len(attribute):
             attribute = None
@@ -356,15 +403,23 @@ class CF_Corrector:
             category_handler(var_name, to_var, check_code, message, cf_name_map)
 
     def separate_error_code(self, result):
+        method_name = "separate_error_code()"
+        debug = False
+        #debug = not debug
         offset = result.find(':')
         if 0 < offset and 10 > offset:
-            check_code = result[0:offset-1].strip()
+            start_offset = 1 if '(' == result[0] else 0
+            end_offset = (offset-2) if ')' == result[offset] else (offset-1)
+            check_code = result[start_offset:end_offset].strip()
             message = result[offset+1:].strip()
             
         else:
             check_code = 'unknown'
             message = result.strip()
         
+        if debug:
+            print("{n} check_code: '{c}' message: [{m}]".format(
+                    n=method_name, c=check_code, m=message))
         return (check_code, message)
     def set_gis_attrs(self, gis_attrs):
         self.gis_attrs = gis_attrs
@@ -410,6 +465,7 @@ class CF_aux_tools:
     
 def main():
 
+    method_name = "main()"
     parser = create_parser()
     (options, args) = parser.parse_args()
     
@@ -436,27 +492,31 @@ def main():
         out_files = CF_aux_tools.make_output_names(in_files, options.out_dir)
     else:
         if 1 < len(in_files):
-            print('{p} The "-o" or "--output-name" options is not allowed for multiple input files.\nPlease set --out-dir option'.format(
+            print('{p} The "-o" or "--output-name" options is not allowed for multiple input files.\nPLease set --out-dir option.'.format(
                     p=ERROR_P))
             sys.exit(-1)
         out_files = [options.out_name]
     
     if options.gis_input_nc is None:
-        print("{p} The GIS input file {g} is missing. Please set it with --gis-input".format(
-                p=ERROR_P))
+        print("{p} The GIS input file is missing. Please set it with --gis-input.".format(
+                p=WARN_P))
         if OPT_GIS_INPUT_Required:
             sys.exit(-1)
     else:
         if not os.path.exists(options.gis_input_nc):
-            print("{p} The GIS input file {g} does not exist. Ignored GIS attributes".format(
+            print("{p} The GIS input file {g} does not exist. Ignored GIS attributes.".format(
                     p=WARN_P, g=options.gis_input_nc))
         else:
             gis_attrs = CF_aux_tools.collect_gis_attributes(options.gis_input_nc)
             actor.set_gis_attrs(gis_attrs)
     for in_file, out_file in zip(in_files, out_files):
         #try:
-            print("in_file, out_file", in_file, out_file)
+            print("{p} {m} in_file: {i}, out_file: {o}\n".format(
+                    p=INFO_P, m=method_name, i=in_file, o=out_file))
             results = checker.checker(in_file)
+            print("\n==================")
+            print("Start correcting {m} ...\n".format(m=method_name))
+            print("n==================")
             actor.correct(in_file, out_file, results, checker.categories)
         #except ex:
         #    print("Processing of file %s aborted due to error" % in_file)
