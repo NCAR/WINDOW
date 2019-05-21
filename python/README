@@ -10,6 +10,21 @@ configures the file location and filenamethe with the environment variable
         export CF_NAME_CONFIG="<my_poth>/<my_json_name>
         setenv CF_NAME_CONFIG "<my_poth>/<my_json_name>
 
+[Setup]
+
+Setup at Cheyenne (the default is python3):
+        module load python
+        ncar_pylib
+
+Setup at pixel
+        - python3 at /opt/python-3.7.1/bin
+        - python packahes at /opt/python-3.7.1/lib/python3.7/site-packages
+        
+        Check if the packages were overridden by user's package installation
+        /opt/python-3.7.1/bin/pip list -v
+
+
+[How to run cf_convert.py]
 
 Step 1. Preparing GIS information
 
@@ -147,6 +162,3 @@ Step 2. Inserting GIS attributes into wrfout files and/or Making it CF compliant
             - netCDF4 (from Unidata)
             - cfunits (or cf_units)
         
-Setup at Cheyenne (the default is python3):
-        module load python
-        ncar_pylib
