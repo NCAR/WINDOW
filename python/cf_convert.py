@@ -5,11 +5,10 @@ import json
 import glob
 from optparse import OptionParser
 
-from netCDF4 import Dataset as nc4_Dataset
-from netCDF4 import Variable as nc4_Variable
-
 from cfchecks import CFChecker, vn1_6
 from cfchecks import getargs as check_getargs
+
+from window_tools import nc_tools
 
 ENV_CF_NAMES_CFG    = 'CF_NAME_CONFIG'
 WINDOW_CF_NAMES_CFG = 'cf_names.json'
@@ -172,47 +171,6 @@ def correct_variable_version(var_name, to_var, check_code, message, cf_name_map=
             p=FIXME_P, n=method_name, v=var_name, c=check_code, m=message))
     
 
-class nc_tools:
-
-    @staticmethod
-    def copy_dimensions(from_nc, to_nc):
-        to_nc_dims = {}
-        for dim_name in from_nc.dimensions:
-            nc_dim = from_nc.dimensions[dim_name]
-            #print('dim', dim_name, from_nc.dimensions[dim_name])
-            to_nc_dims[dim_name] = to_nc.createDimension(dim_name, len(nc_dim))
-            
-        #print('to_nc_dims', to_nc_dims)
-        return to_nc_dims
-        
-    @staticmethod
-    def copy_global_attributes(from_nc, to_nc):
-        for attr_name in from_nc.ncattrs():
-            #print('\t%s:' % attr_name, repr(from_nc.getncattr(attr_name)))
-            to_nc.setncattr(attr_name, from_nc.getncattr(attr_name))
-        
-    SKIP_Attrs= [ "_FillValue"]
-    @staticmethod
-    def copy_variable(nc_out, from_var):
-        to_var = nc_out.createVariable(from_var.name, from_var.dtype, from_var.dimensions)
-        to_var[:] = from_var[:]
-        for attr_name in from_var.ncattrs():
-            if attr_name in nc_tools.SKIP_Attrs:
-                print( " skipped attribute {v}: {a}={av}".format(
-                    a=attr_name, v=from_var.name, av=from_var.getncattr(attr_name)))
-                continue
-            to_var.setncattr(attr_name, from_var.getncattr(attr_name))
-        return to_var
-        
-    @staticmethod
-    def create_nc_from(nc_name, from_nc):
-        out_nc = nc4_Dataset(nc_name, "w")
-        
-        nc_tools.copy_dimensions(from_nc, out_nc)
-        nc_tools.copy_global_attributes(from_nc, out_nc)
-        return out_nc
-        
-
 class CF_Names:
 
     def __init__(self, cf_names_file=None):
@@ -296,8 +254,11 @@ class CF_Corrector:
     def __init__(self):
         self.gis_attrs = {}
         self.cf_name_map = CF_Names()
+        self.gis_dim_x = None
+        self.gis_dim_y = None
+        self.gis_vars  = []
     
-    def add_GIS_attrs(self, to_var):
+    def add_gis_attrs(self, to_var):
         nc_dims = to_var.get_dims()
         if 1 >= len(nc_dims):
             return
@@ -338,6 +299,27 @@ class CF_Corrector:
                 to_var.setncattr(nc_key, gis_attrs[attr_key])
                 print("adding {k}={v}".format(k=nc_key, v=gis_attrs[attr_key]))
         
+#     def add_gis_dimensions(self, to_nc):
+#         method_name = "add_gis_dimensions()"
+#         debug = False
+#         debug = not debug
+# 
+#         global_dims = to_nc.dimensions
+#         if self.gis_dim_x.name not in global_dims.keys():
+#             to_nc.createDimension(self.gis_dim_x.name, self.gis_dim_x.size)
+#         if self.gis_dim_y.name not in global_dims.keys():
+#             to_nc.createDimension(self.gis_dim_x.name, self.gis_dim_x.size)
+        
+    def add_gis_vars(self, to_nc):
+        method_name = "add_gis_vars()"
+        debug = False
+        debug = not debug
+        if debug:
+            print("{m} is called, global_dims: {d}".format(m=method_name, d=to_nc.dimensions))
+        if self.gis_dim_x is not None and self.gis_dim_y is not None and 0 < len(self.gis_vars):
+            for gis_var in self.gis_vars:
+                nc_tools.copy_variable(to_nc, gis_var)
+        
     def correct(self, from_nc_name, to_nc_name, results, categories):
         debug = False
         #debug = not debug
@@ -347,9 +329,14 @@ class CF_Corrector:
             print('===============    global_results', global_results)
             print('=============== variables_results', variables_results)
         
-        from_nc = nc4_Dataset(from_nc_name, "r")
+        from_nc = nc_tools.open_nc_Dataset(from_nc_name)
         
-        to_nc   = nc_tools.create_nc_from(to_nc_name, from_nc)
+        extra_dims = []
+        if self.gis_dim_x is not None:
+            extra_dims.append(self.gis_dim_x)
+        if self.gis_dim_y is not None:
+            extra_dims.append(self.gis_dim_y)
+        to_nc   = nc_tools.create_nc_from(to_nc_name, from_nc, extra_dims)
         
         for category in categories:
             if category == 'VERSION':
@@ -379,7 +366,9 @@ class CF_Corrector:
                                     to_var, category_results, self.cf_name_map)
             
             if 0 < len(gis_attrs):
-                self.add_GIS_attrs(to_var)
+                self.add_gis_attrs(to_var)
+            
+        self.add_gis_vars(to_nc)
         
     #def global_result_fatal(self, from_nc, results, to_nc):
     #    global_results = results["global"]
@@ -421,8 +410,11 @@ class CF_Corrector:
             print("{n} check_code: '{c}' message: [{m}]".format(
                     n=method_name, c=check_code, m=message))
         return (check_code, message)
-    def set_gis_attrs(self, gis_attrs):
-        self.gis_attrs = gis_attrs
+    def set_gis_data(self, gis_data):
+        self.gis_attrs = gis_data[0]
+        self.gis_dim_x = gis_data[1]
+        self.gis_dim_y = gis_data[2]
+        self.gis_vars  = gis_data[3]
 
     #VARIABLE_IGNORE_CODES = {
     #      '2.1': ["Filename must have .nc suffix"],
@@ -431,19 +423,48 @@ class CF_Corrector:
 class CF_aux_tools:
 
     @staticmethod
-    def collect_gis_attributes(gis_input_name):
+    def collect_gis_data(gis_input_name):
+        method_name = 'collect_gis_data()'
+        debug = False
+
+        #if debug:
+        #    print("{m} is called".format(m=method_name))
         gis_attrs = {}
-        gis_input_nc = nc4_Dataset(gis_input_name, "r")
+        var_names = []
+        gis_input_nc = nc_tools.open_nc_Dataset(gis_input_name)
         global_attrs = gis_input_nc.ncattrs()
         for global_attr in global_attrs:
             if global_attr.startswith('WINDOW_'):
                 gis_attrs[global_attr] = gis_input_nc.getncattr(global_attr)
-        grid_mapping_key = 'WINDOW_grid_mapping'
-        if grid_mapping_key in gis_attrs.keys():
-            grid_mapping_var = gis_attrs[grid_mapping_key]
+                if debug:
+                    print("{m} attr: {k} = {v}".format(m=method_name, k=global_attr, v=gis_attrs[global_attr]))
+                if global_attr == 'WINDOW_append_vars':
+                    var_names = gis_attrs[global_attr].split(',')
+        #grid_mapping_key = 'WINDOW_grid_mapping'
+        #if grid_mapping_key in gis_attrs.keys():
+        #    grid_mapping_var = gis_attrs[grid_mapping_key]
+
+        dim_x = None
+        dim_y = None
+        variables = []
+        for var_name in var_names:
+            var = gis_input_nc.variables.get(var_name, None)
+            if var is not None:
+                if dim_x is None or dim_y is None:
+                    for dim_name in var.dimensions:
+                        if dim_x is None and dim_name == 'x':
+                            dim_x = gis_input_nc.dimensions[dim_name]
+                        if dim_y is None and dim_name == 'y':
+                            dim_y = gis_input_nc.dimensions[dim_name]
+                #if debug:
+                #    print("{m} DEBUG dimensions: {d}".format(m=method_name, d=var.dimensions))
+                variables.append(var)
             
-        del gis_input_nc 
-        return gis_attrs
+        del gis_input_nc
+        if debug:
+            print("{m} DEBUG dim_x: {dx} dim_y: {dy} variables: {v}".format(
+                    m=method_name, dx=dim_x, dy=dim_y, v=variables))
+        return gis_attrs, dim_x, dim_y, variables
         
     @staticmethod
     def make_output_names(in_files, output_dir):
@@ -467,7 +488,9 @@ def main():
 
     method_name = "main()"
     parser = create_parser()
-    (options, args) = parser.parse_args()
+    options_args = parser.parse_args()
+    options = options_args[0]
+    #args = options_args[1]
     
     #Filter out arguments which are not for cfchecks
     my_args = []
@@ -507,16 +530,17 @@ def main():
             print("{p} The GIS input file {g} does not exist. Ignored GIS attributes.".format(
                     p=WARN_P, g=options.gis_input_nc))
         else:
-            gis_attrs = CF_aux_tools.collect_gis_attributes(options.gis_input_nc)
-            actor.set_gis_attrs(gis_attrs)
+            gis_data = CF_aux_tools.collect_gis_data(options.gis_input_nc)
+            actor.set_gis_data(gis_data)
+    
     for in_file, out_file in zip(in_files, out_files):
         #try:
             print("{p} {m} in_file: {i}, out_file: {o}\n".format(
                     p=INFO_P, m=method_name, i=in_file, o=out_file))
             results = checker.checker(in_file)
             print("\n==================")
-            print("Start correcting {m} ...\n".format(m=method_name))
-            print("n==================")
+            print("Start correcting {m} ...".format(m=method_name))
+            print("==================")
             actor.correct(in_file, out_file, results, checker.categories)
         #except ex:
         #    print("Processing of file %s aborted due to error" % in_file)

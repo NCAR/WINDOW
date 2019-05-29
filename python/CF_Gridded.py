@@ -29,10 +29,12 @@ import math
 
 # Import Additional Modules
 import numpy
-import netCDF4
+#import netCDF4
 import ogr
 import osr
 # --- End Import Modules --- #
+
+from window_tools import nc_tools
 
 # --- Module Configurations --- #
 sys.dont_write_bytecode = True                                                  # Do not write compiled (.pyc) files
@@ -96,7 +98,7 @@ def Read_GEOGRID_for_SRS(in_nc):
 
     # Read input WPS GEOGRID file
     # Loop through global variables in NetCDF file to gather projection information
-    rootgrp = netCDF4.Dataset(in_nc, 'r')                                       # Establish an object for reading the input NetCDF file
+    rootgrp = nc_tools.open_nc_Dataset(in_nc)                                   # Establish an object for reading the input NetCDF file
     globalAtts = rootgrp.__dict__                                               # Read all global attributes into a dictionary
     map_pro = globalAtts['MAP_PROJ']                                            # Find out which projection this GEOGRID file is in
     print('    Map Projection: %s' %projdict[map_pro])
@@ -333,9 +335,15 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
     dim_x = rootgrp.createDimension('x', Xsize)
     print('    Dimensions created after {0: 8.2f} seconds.'.format(time.time()-tic1))
 
+    append_vars = []
+
     # Create coordinate variables
-    var_y = rootgrp.createVariable('y', 'f8', 'y')                              # (64-bit floating point)
-    var_x = rootgrp.createVariable('x', 'f8', 'x')                              # (64-bit floating point)
+    #var_y = rootgrp.createVariable('y', 'f8', 'y')                              # (64-bit floating point)
+    #var_x = rootgrp.createVariable('x', 'f8', 'x')                              # (64-bit floating point)
+    var_y = rootgrp.createVariable('y', 'f8', dim_y.name)                        # (64-bit floating point)
+    var_x = rootgrp.createVariable('x', 'f8', dim_x.name)                        # (64-bit floating point)
+    append_vars.append('x')
+    append_vars.append('y')
 
     # Must handle difference between ProjectionCoordinateSystem and LatLonCoordinateSystem
     if proj.IsGeocentric():
@@ -376,6 +384,7 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
 
         # Build coordinate reference system variable
         rootgrp = add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, WKT_Esri, WKT_GDAL, GeoTransformStr)
+        append_vars.append(CoordSysVarName)
 
     if 0 < len(WKT_Esri):
         rootgrp.setncattr('WINDOW_esri_pe_string', WKT_Esri)
@@ -449,9 +458,11 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
         #data_Var.units = ''
         #data_Var.long_name = ''
         data_Var[:] = dataArr
+        #append_vars.append(geogridVariable)
+
 
     print('    netCDF global attributes set after {0: 8.2f} seconds.'.format(time.time()-tic1))
-    return rootgrp
+    return rootgrp, append_vars
 
 try:
     #from osgeo import ogr, osr, gdal
@@ -512,7 +523,7 @@ if __name__ == '__main__':
     print('  GeoTransform: {0}'.format(GeoTransform))                           # Print affine transformation to screen.
 
     # Gather variable from the input file
-    rootgrp_in = netCDF4.Dataset(in_nc, 'r')                                    # Open read object on input netCDF file
+    rootgrp_in = nc_tools.open_nc_Dataset(in_nc)                                    # Open read object on input netCDF file
     ncvar = rootgrp_in.variables[geogridVariable]                               # netCDF Variable object
     varDims = ncvar.dimensions                                                  # Read variable dimensions for the selected GEOGRID variable
     Ysize = ncvar.shape[ncvar.dimensions.index(XYmap['y'])]                   # Get the dimension size based on the dimension name
@@ -524,18 +535,21 @@ if __name__ == '__main__':
     xarr, yarr = getXY(GeoTransform, dataArr, flipY=True)                       # Use affine transformation to calculate cell coordinates
 
     # Create spatial metadata file for GEOGRID/LDASOUT grids
-    rootgrp = netCDF4.Dataset(out_nc, 'w', format=outNCType)                    # Open write object (create) on output netCDF file
-    rootgrp = create_CF_NetCDF(rootgrp, dataArr, proj, map_pro, projdir, DX, DY,
+    rootgrp = nc_tools.create_nc_Dataset(out_nc, format=outNCType)                    # Open write object (create) on output netCDF file
+    rootgrp, append_vars = create_CF_NetCDF(rootgrp, dataArr, proj, map_pro, projdir, DX, DY,
         GeoTransform, Xsize, Ysize, xarr, yarr, addLatLon=addLatLon, WKT_Esri=PE_stringEsri,
         WKT_GDAL=PE_stringGDAL, addData=addData)
 
     if addLatLon:
         rootgrp.variables['LATITUDE'][:] = rootgrp_in.variables[latVar][0]
         rootgrp.variables['LONGITUDE'][:] = rootgrp_in.variables[lonVar][0]
+        append_vars.append('LATITUDE')
+        append_vars.append('LONGITUDE')
     rootgrp_in.close()
 
     # Add additional metadata to the output file
     rootgrp.GDAL_DataType = 'Generic'
+    rootgrp.setncattr('WINDOW_append_vars', ','.join(append_vars))
     rootgrp.history = 'Created %s' %time.ctime()
     rootgrp.Source_Software = 'WINDOW AIR Processor %s' %PpVersion
     rootgrp.proj4 = proj4
