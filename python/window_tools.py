@@ -28,8 +28,13 @@ class nc_tools:
         
     SKIP_Attrs= [ "_FillValue"]
     @staticmethod
-    def copy_variable(nc_out, from_var):
-        to_var = nc_out.createVariable(from_var.name, from_var.dtype, from_var.dimensions)
+    def copy_variable(nc_out, from_var, new_dims={}):
+        debug = False
+        debug = not debug
+        dims = [ dim if new_dims.get(dim,None) is None else new_dims[dim] for dim in from_var.dimensions]
+        if debug:
+            print('   DEBUG copy_variable() var: {v} dims: {d}'.format(v=from_var.name, d=dims))
+        to_var = nc_out.createVariable(from_var.name, from_var.dtype, dims)
         to_var[:] = from_var[:]
         for attr_name in from_var.ncattrs():
             if attr_name in nc_tools.SKIP_Attrs:
@@ -40,8 +45,8 @@ class nc_tools:
         return to_var
         
     @staticmethod
-    def create_nc_Dataset(nc_name, format='NETCDF4'):
-        return nc4_Dataset(nc_name, "w", format=format)
+    def create_nc_Dataset(nc_name, nc_format='NETCDF4'):
+        return nc4_Dataset(nc_name, "w", format=nc_format)
         
     @staticmethod
     def create_nc_from(nc_name, from_nc, extra_dims=None):
@@ -49,9 +54,9 @@ class nc_tools:
         
         nc_tools.copy_dimensions(from_nc, out_nc)
         if extra_dims is not None:
-            global_dims = out_nc.dimensions
+            global_dims = out_nc.dimensions.keys()
             for dim in extra_dims:
-                if dim.name not in global_dims.keys():
+                if dim.name not in global_dims:
                     out_nc.createDimension(dim.name, dim.size)
         nc_tools.copy_global_attributes(from_nc, out_nc)
         return out_nc

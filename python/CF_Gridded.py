@@ -191,7 +191,8 @@ def Read_GEOGRID_for_SRS(in_nc):
     print('  Created projection definition from input NetCDF GEOGRID file %s in %.2fs.' %(in_nc, time.time()-tic))
     return proj1, DX, DY, x00, y00, map_pro
 
-def add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, PE_stringEsri, PE_stringGDAL, GeoTransformStr=None):
+def add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, PE_stringEsri, PE_stringGDAL,
+                GeoTransformStr=None, coordinateAxesName='y x'):
     """
     This function was added to generalize the creating of a coordinate reference
     system variable based on a spatial reference object and other grid and projection
@@ -217,7 +218,7 @@ def add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, PE_stringEs
         # Lambert Conformal Conic
 
         # Required transform variables
-        proj_var._CoordinateAxes = 'y x'                                            # Coordinate systems variables always have a _CoordinateAxes attribute, optional for dealing with implicit coordinate systems
+        proj_var._CoordinateAxes = coordinateAxesName                           # Coordinate systems variables always have a _CoordinateAxes attribute, optional for dealing with implicit coordinate systems
         proj_var._CoordinateTransformType = "Projection"
         proj_var.standard_parallel = sr.GetProjParm("standard_parallel_1"), sr.GetProjParm("standard_parallel_2")     # Double
         proj_var.longitude_of_central_meridian = float(sr.GetProjParm("central_meridian")) # Double. Necessary in combination with longitude_of_prime_meridian?
@@ -234,7 +235,7 @@ def add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, PE_stringEs
         # Polar Stereographic
 
         # Required transform variables
-        proj_var._CoordinateAxes = 'y x'                                            # Coordinate systems variables always have a _CoordinateAxes attribute, optional for dealing with implicit coordinate systems
+        proj_var._CoordinateAxes = coordinateAxesName                           # Coordinate systems variables always have a _CoordinateAxes attribute, optional for dealing with implicit coordinate systems
         proj_var._CoordinateTransformType = "Projection"
         proj_var.longitude_of_projection_origin = float(sr.GetProjParm("longitude_of_origin"))   # Double - proj_var.straight_vertical_longitude_from_pole = ''
         proj_var.latitude_of_projection_origin = float(sr.GetProjParm("latitude_of_origin"))     # Double
@@ -251,7 +252,7 @@ def add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, PE_stringEs
         # Mercator
 
         # Required transform variables
-        proj_var._CoordinateAxes = 'y x'                                            # Coordinate systems variables always have a _CoordinateAxes attribute, optional for dealing with implicit coordinate systems
+        proj_var._CoordinateAxes = coordinateAxesName                           # Coordinate systems variables always have a _CoordinateAxes attribute, optional for dealing with implicit coordinate systems
         proj_var._CoordinateTransformType = "Projection"
         proj_var.longitude_of_projection_origin = float(sr.GetProjParm("longitude_of_origin"))   # Double
         proj_var.latitude_of_projection_origin = float(sr.GetProjParm("latitude_of_origin"))     # Double
@@ -273,8 +274,8 @@ def add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, PE_stringEs
     # Added 10/13/2017 by KMS to accomodate alternate datums
     elif map_pro == 0:
         proj_var._CoordinateAxes = 'lat lon'
-        proj_var.semi_major_axis = sr.GetSemiMajor()                            #
-        proj_var.semi_minor_axis =  sr.GetSemiMinor()                           #
+        proj_var.semi_major_axis = sr.GetSemiMajor()
+        proj_var.semi_minor_axis =  sr.GetSemiMinor()
         if sr.flattening != 0:
             proj_var.inverse_flattening = float(float(1)/sr.GetInvFlattening()) # This avoids a division by 0 error
         else:
@@ -285,7 +286,7 @@ def add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, PE_stringEs
     rootgrp.Conventions = CFConv
     return rootgrp
 
-def getXY(GeoTransformStr, array, flipY=True):
+def getXY(GeoTransformStr, nx, ny, flipY=True):
     """
     This function will use the affine transformation (GeoTransform) to produce an
     array of X and Y 1D arrays. Note that the GDAL affine transformation provides
@@ -298,8 +299,10 @@ def getXY(GeoTransformStr, array, flipY=True):
     gt = [float(item) for item in GeoTransformStr.split(' ')]
 
     # Build i,j arrays
-    j = numpy.arange(dataArr.shape[0]) + float(0.5)                             # Add 0.5 to estimate coordinate of grid cell centers
-    i = numpy.arange(dataArr.shape[1]) + float(0.5)                             # Add 0.5 to estimate coordinate of grid cell centers
+    #j = numpy.arange(dataArr.shape[0]) + float(0.5)                             # Add 0.5 to estimate coordinate of grid cell centers
+    #i = numpy.arange(dataArr.shape[1]) + float(0.5)                             # Add 0.5 to estimate coordinate of grid cell centers
+    j = numpy.arange(nx) + float(0.5)                             # Add 0.5 to estimate coordinate of grid cell centers
+    i = numpy.arange(ny) + float(0.5)                             # Add 0.5 to estimate coordinate of grid cell centers
 
     # col, row to x, y   From https://www.perrygeo.com/python-affine-transforms.html
     x = (i * gt[1]) + gt[0]
@@ -312,8 +315,9 @@ def getXY(GeoTransformStr, array, flipY=True):
 
 
 def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransformStr,
-                     Xsize, Ysize, xarr, yarr, addLatLon=False, addVars=[],
-                     WKT_Esri="", WKT_GDAL="", addData=False):
+                     Xsize, Ysize, addLatLon=False, addVars=[],
+                     WKT_Esri="", WKT_GDAL="", addData=False, GeoTransform_alt=None,
+                     Xsize_alt=-1, Ysize_alt=-1):
     """This function will create the netCDF file with CF conventions for the grid
     description. The output NetCDF will have the XMAP/YMAP created for the x and
     y variables and the LATITUDE and LONGITUDE variables populated with the selected
@@ -333,6 +337,10 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
     # Create Dimensions
     dim_y = rootgrp.createDimension('y', Ysize)
     dim_x = rootgrp.createDimension('x', Xsize)
+    has_subgrid = (0 < Ysize_alt) and (0 < Xsize_alt)
+    if has_subgrid:
+        dim_y_sub = rootgrp.createDimension('y_alt', Ysize_alt)
+        dim_x_sub = rootgrp.createDimension('x_alt', Xsize_alt)
     print('    Dimensions created after {0: 8.2f} seconds.'.format(time.time()-tic1))
 
     append_vars = []
@@ -344,6 +352,11 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
     var_x = rootgrp.createVariable('x', 'f8', dim_x.name)                        # (64-bit floating point)
     append_vars.append('x')
     append_vars.append('y')
+    if has_subgrid:
+        var_y_subgrid = rootgrp.createVariable('y_alt', 'f8', dim_y_sub.name)        # (64-bit floating point)
+        var_x_subgrid = rootgrp.createVariable('x_alt', 'f8', dim_x_sub.name)        # (64-bit floating point)
+        append_vars.append('x_alt')
+        append_vars.append('y_alt')
 
     # Must handle difference between ProjectionCoordinateSystem and LatLonCoordinateSystem
     if proj.IsGeocentric():
@@ -361,6 +374,14 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
         var_x.units = "degrees_east"
         var_y._CoordinateAxisType = "Lat"
         var_x._CoordinateAxisType = "Lon"
+        if var_y_subgrid is not None:
+            var_y_subgrid.long_name = "latitude sub coordinate"
+            var_y_subgrid.units = var_y.units
+            var_y_subgrid._CoordinateAxisType = var_y._CoordinateAxisType
+        if var_x_subgrid is not None:
+            var_x_subgrid.long_name = "longitude sub coordinate"
+            var_x_subgrid.units = var_x.units
+            var_x_subgrid._CoordinateAxisType = var_x._CoordinateAxisType
 
     elif proj.IsProjected():
         if crsVarname:
@@ -382,9 +403,28 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
         var_y.resolution = float(DY)                                            # Added 11/3/2016 by request of NWC
         var_x.resolution = float(DX)                                            # Added 11/3/2016 by request of NWC
 
+        if var_y_subgrid is not None:
+            var_y_subgrid.standard_name = 'projection_y_sub_coordinate'
+            var_y_subgrid.long_name = 'y_sub coordinate of projection'
+            var_y_subgrid.units = var_y.units
+            var_y_subgrid._CoordinateAxisType = var_y._CoordinateAxisType
+            var_y_subgrid.resolution = float(DY) / sub_grid_factor
+        if var_x_subgrid is not None:
+            var_x_subgrid.standard_name = 'projection_x_sub_coordinate'
+            var_x_subgrid.long_name = 'x_sub coordinate of projection'
+            var_x_subgrid.units = var_x.units
+            var_x_subgrid._CoordinateAxisType = var_x._CoordinateAxisType
+            var_x_subgrid.resolution = float(DX) / sub_grid_factor
+
         # Build coordinate reference system variable
         rootgrp = add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, WKT_Esri, WKT_GDAL, GeoTransformStr)
         append_vars.append(CoordSysVarName)
+        if GeoTransform_alt is not None:
+            sub_CoordSysVarName = CoordSysVarName + "_alt"
+            add_CRS_var(rootgrp, sr, map_pro, sub_CoordSysVarName, grid_mapping, WKT_Esri, WKT_GDAL, GeoTransform_alt, 'y_alt x_alt')
+            append_vars.append(sub_CoordSysVarName)
+            rootgrp.setncattr('WINDOW_grid_mapping_alt', sub_CoordSysVarName)
+            rootgrp.setncattr('WINDOW_CoordinateSystems_alt', sub_CoordSysVarName)
 
     if 0 < len(WKT_Esri):
         rootgrp.setncattr('WINDOW_esri_pe_string', WKT_Esri)
@@ -399,21 +439,19 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
         #ncvar.long_name = varinfo[2]
         #ncvar.units = varinfo[3]
 
-    # Fill in  x and y variables
-    var_y[:] = yarr[:]
-    var_x[:] = xarr[:]
-    del yarr, xarr
     print('    Coordinate variables and variable attributes set after {0: 8.2f} seconds.'.format(time.time()-tic1))
 
-
+    dim_names = ('y', 'x')
+    if Xsize > Xsize_alt:
+        dim_names = ('y_alt', 'x_alt')
     if addLatLon == True:
 
         print('    Proceeding to add LATITUDE and LONGITUDE variables after {0: 8.2f} seconds.'.format(time.time()-tic1))
 
         # Populate this file with 2D latitude and longitude variables
         # Latitude and Longitude variables (WRF)
-        lat_WRF = rootgrp.createVariable('LATITUDE', 'f4', ('y', 'x'))          # (32-bit floating point)
-        lon_WRF = rootgrp.createVariable('LONGITUDE', 'f4', ('y', 'x'))         # (32-bit floating point)
+        lat_WRF = rootgrp.createVariable('LATITUDE', 'f4', dim_names)           # (32-bit floating point)
+        lon_WRF = rootgrp.createVariable('LONGITUDE', 'f4', dim_names)          # (32-bit floating point)
         lat_WRF.long_name = 'latitude coordinate'                               # 'LATITUDE on the WRF Sphere'
         lon_WRF.long_name = 'longitude coordinate'                              # 'LONGITUDE on the WRF Sphere'
         lat_WRF.units = "degrees_north"
@@ -451,7 +489,7 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
         ##    lon_WRF._CoordinateSystems = "%s %s" %(CoordSysVarName, LatLonCoordSysVarName)        # For specifying more than one coordinate system
 
     if addData:
-        data_Var = rootgrp.createVariable(geogridVariable, dataArr.dtype, ('y', 'x'))          # (32-bit floating point)
+        data_Var = rootgrp.createVariable(geogridVariable, dataArr.dtype, dim_names)          # (32-bit floating point)
         data_Var.grid_mapping = CoordSysVarName                                 # This attribute appears to be important to Esri
         data_Var.esri_pe_string = WKT_Esri
         data_Var._CoordinateSystems = CoordSysVarName
@@ -484,28 +522,62 @@ def gdal_error_handler(err_class, err_num, err_msg):
     print('Error Number: %s' % (err_num))
     print('Error Type: %s' % (err_class))
     print('Error Message: %s' % (err_msg))
-
-if __name__ == '__main__':
-    tic = time.time()
-
-    # Gather all necessary parameters
-    if 1 == len(sys.argv):
-        print(" Usage {p} input_geogrid_file [output_geogrid_file]".format(p=sys.argv[0]))
-        print("      input_geogrid_file: input geogrid file name, required")
-        print("     output_geogrid_file: output geogrid file name, optional, default: <input>_spatial.nc")
-        sys.exit(-1);
     
-    in_nc = sys.argv[1]
+def process_arguments(argv):
+    arg_index = 0
+    arg_count = len(argv)
+    in_nc = argv[arg_index]
     if not os.path.exists(in_nc):
         print(" ==ERROR == The input geogrid file [{i}] does not exist!!!".format(i=in_nc))
         print("            Quit...")
         sys.exit(-2);
     
+    out_nc = None
+    sub_grid_factor = 1
+    subgrid_first = False
+    
+    arg_index += 1
     projdir = os.path.dirname(in_nc)
-    if 2 < len(sys.argv):
-        out_nc = sys.argv[2]
-    else:
+    if 2 < arg_count:
+        if not argv[arg_index].isdigit() and not argv[arg_index].startswith('subgrid_'):
+            out_nc = argv[arg_index]
+            arg_index += 1
+        if argv[arg_index].isdigit():
+            sub_grid_factor = int(argv[arg_index])
+            arg_index += 1
+        elif argv[arg_index].startswith('subgrid_factor'):
+            sub_grid_factor = int(argv[arg_index].split('=')[1])
+            arg_index += 1
+        if (arg_index < arg_count) and 'subgrid_first' == argv[arg_index]:
+            subgrid_first = True
+    if out_nc is None:
         out_nc = os.path.join(projdir, os.path.basename(in_nc).replace('.nc', '_spatial.nc'))
+    return in_nc, out_nc, sub_grid_factor, subgrid_first
+
+def show_help(app_name):
+    print(" Usage {p} input_geogrid_file [output_geogrid_file]".format(p=app_name))
+    print("     input_geogrid_file: input geogrid file name, required")
+    print("    output_geogrid_file: output geogrid file name, optional, default: <input>_spatial.nc")
+    print("   <subgrid_factor=DD>: integer to make sub_grid dimension, optional")
+    print("   <subgrid_first>: string 'subgrid_first' to make sub_grid dimension, optional")
+    
+if __name__ == '__main__':
+    debug = False
+    #debug = not debug
+    tic = time.time()
+
+    # Gather all necessary parameters
+    if 1 == len(sys.argv):
+        print(" Usage {p} input_geogrid_file [output_geogrid_file]".format(p=sys.argv[0]))
+        print("     input_geogrid_file: input geogrid file name, required")
+        print("    output_geogrid_file: output geogrid file name, optional, default: <input>_spatial.nc")
+        print("   <sub_grid_factor=DD>: integer to make sub_grid dimension, optional")
+        sys.exit(-1);
+    
+    in_nc, out_nc, sub_grid_factor, subgrid_first = process_arguments(sys.argv[1:])
+    if debug:
+        print(' DEBUG: sub_grid_factor: {f} subgrid_first: {s}'.format(f=sub_grid_factor, s=subgrid_first))
+    projdir = os.path.dirname(in_nc)
 
     # install error handler
     gdal.PushErrorHandler(gdal_error_handler)
@@ -521,24 +593,46 @@ if __name__ == '__main__':
     PE_stringEsri = proj.ExportToWkt()                                          # This is Esri's representation of a WKT string
     print('  Proj4: {0}'.format(proj4))                                         # Print Proj.4 string to screen
     print('  GeoTransform: {0}'.format(GeoTransform))                           # Print affine transformation to screen.
+    if sub_grid_factor > 1:
+        GeoTransform_subgrid = '%s %s %s %s %s %s' %(x00, DX/sub_grid_factor, 0, y00, 0, -DY/sub_grid_factor)               # Build an affine transformation (useful info to add to metadata)
 
     # Gather variable from the input file
-    rootgrp_in = nc_tools.open_nc_Dataset(in_nc)                                    # Open read object on input netCDF file
+    rootgrp_in = nc_tools.open_nc_Dataset(in_nc)                                # Open read object on input netCDF file
     ncvar = rootgrp_in.variables[geogridVariable]                               # netCDF Variable object
     varDims = ncvar.dimensions                                                  # Read variable dimensions for the selected GEOGRID variable
-    Ysize = ncvar.shape[ncvar.dimensions.index(XYmap['y'])]                   # Get the dimension size based on the dimension name
-    Xsize = ncvar.shape[ncvar.dimensions.index(XYmap['x'])]                   # Get the dimension size based on the dimension name
+    Ysize = ncvar.shape[ncvar.dimensions.index(XYmap['y'])]                     # Get the dimension size based on the dimension name
+    Xsize = ncvar.shape[ncvar.dimensions.index(XYmap['x'])]                     # Get the dimension size based on the dimension name
     dataArr = ncvar[0]                                                          # Select first time slice. Assumes time is first dimension.
     del ncvar
 
+    Xsize_reg = Xsize
+    Ysize_reg = Ysize
+    has_subgrid = sub_grid_factor > 1
+    GeoTransform_reg = GeoTransform
+    GeoTransform_alt = None
+    if has_subgrid:
+        Xsize_subgrid = (Xsize+1)*sub_grid_factor
+        Ysize_subgrid = (Ysize+1)*sub_grid_factor
+        if subgrid_first:
+            Xsize_alt = Xsize
+            Ysize_alt = Ysize
+            Xsize_reg = Xsize_subgrid
+            Ysize_reg = Ysize_subgrid
+            GeoTransform_alt = GeoTransform
+            GeoTransform_reg = GeoTransform_subgrid
+        else:
+            GeoTransform_reg = GeoTransform
+            Xsize_alt = Xsize_subgrid
+            Ysize_alt = Ysize_subgrid
     # Gather 1D coordinates using data array size and geotransform
-    xarr, yarr = getXY(GeoTransform, dataArr, flipY=True)                       # Use affine transformation to calculate cell coordinates
+    xarr, yarr = getXY(GeoTransform, Xsize_reg, Ysize_reg, flipY=True)                       # Use affine transformation to calculate cell coordinates
 
     # Create spatial metadata file for GEOGRID/LDASOUT grids
     rootgrp = nc_tools.create_nc_Dataset(out_nc, format=outNCType)                    # Open write object (create) on output netCDF file
     rootgrp, append_vars = create_CF_NetCDF(rootgrp, dataArr, proj, map_pro, projdir, DX, DY,
-        GeoTransform, Xsize, Ysize, xarr, yarr, addLatLon=addLatLon, WKT_Esri=PE_stringEsri,
-        WKT_GDAL=PE_stringGDAL, addData=addData)
+        GeoTransform_reg, Xsize_reg, Ysize_reg, addLatLon=addLatLon, WKT_Esri=PE_stringEsri,
+        WKT_GDAL=PE_stringGDAL, addData=addData, GeoTransform_alt=GeoTransform_alt,
+        Xsize_alt=Xsize_alt, Ysize_alt=Ysize_alt)
 
     if addLatLon:
         rootgrp.variables['LATITUDE'][:] = rootgrp_in.variables[latVar][0]
@@ -547,6 +641,21 @@ if __name__ == '__main__':
         append_vars.append('LONGITUDE')
     rootgrp_in.close()
 
+    # Fill in  x and y variables
+    if debug:
+        print('   DEBUG main() Xsize_reg: ', Xsize_reg, " len(xarr)=", len(xarr))
+    rootgrp.variables['y'][:] = yarr[:]
+    rootgrp.variables['x'][:] = xarr[:]
+    del yarr, xarr
+
+    if has_subgrid:
+        xarr_sub, yarr_sub = getXY(GeoTransform_subgrid, Xsize_alt, Ysize_alt, flipY=True)           # Use affine transformation to calculate cell coordinates
+        if debug:
+            print('   DEBUG length of yarr_sub: {l}'.format(l=len(yarr_sub)))
+        rootgrp.variables['y_alt'][:] = yarr_sub[:]
+        rootgrp.variables['x_alt'][:] = xarr_sub[:]
+        del yarr_sub, xarr_sub
+        
     # Add additional metadata to the output file
     rootgrp.GDAL_DataType = 'Generic'
     rootgrp.setncattr('WINDOW_append_vars', ','.join(append_vars))

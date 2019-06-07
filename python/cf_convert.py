@@ -254,15 +254,41 @@ class CF_Corrector:
     def __init__(self):
         self.gis_attrs = {}
         self.cf_name_map = CF_Names()
-        self.gis_dim_x = None
-        self.gis_dim_y = None
+        self.gis_dims = []
         self.gis_vars  = []
+        self.new_dims = {}
+        self.new_dims['west_east'] = 'x'
+        self.new_dims['south_north'] = 'y'
+        self.new_dims['west_east_subgrid'] = 'x_alt'
+        self.new_dims['south_north_subgrid'] = 'y_alt'
+        self.new_alt_dims = {}
+        self.new_alt_dims['west_east'] = 'x_alt'
+        self.new_alt_dims['south_north'] = 'y_alt'
+        self.new_alt_dims['west_east_subgrid'] = 'x'
+        self.new_alt_dims['south_north_subgrid'] = 'y'
+        self.subgrid_first = False
     
     def add_gis_attrs(self, to_var):
         nc_dims = to_var.get_dims()
         if 1 >= len(nc_dims):
             return
         
+        dim_x = None
+        dim_x_alt = None
+        has_subgrid = False
+        for dim in nc_dims:
+            dim_name = dim.name 
+            if dim_name == 'x':
+                dim_x = dim
+            elif dim_name == 'x_alt':
+                dim_x_alt = dim
+
+            if dim_name.endswith('_alt'):
+                has_subgrid = True
+                break;
+        if dim_x is not None and dim_x_alt is not None:
+            self.subgrid_first = dim_x.size > dim_x_alt.size
+            
         nc_attr_names = to_var.ncattrs()
         
         attr_key = 'long_name'
@@ -292,7 +318,13 @@ class CF_Corrector:
                 if nc_key in nc_attr_names:
                     continue
                 
-                if nc_key != 'esri_pe_string':
+                if (nc_key == 'grid_mapping' or nc_key == 'CoordinateSystems') and has_subgrid:
+                    continue
+                elif nc_key == 'grid_mapping_alt' or nc_key == 'CoordinateSystems_alt':
+                    if not has_subgrid:
+                        continue
+                    nc_key = nc_key[:-len('_alt')]
+                elif nc_key != 'esri_pe_string':
                     if has_coordinates_attr:
                         continue
                 
@@ -316,7 +348,8 @@ class CF_Corrector:
         debug = not debug
         if debug:
             print("{m} is called, global_dims: {d}".format(m=method_name, d=to_nc.dimensions))
-        if self.gis_dim_x is not None and self.gis_dim_y is not None and 0 < len(self.gis_vars):
+        #if self.gis_dim_x is not None and self.gis_dim_y is not None and 0 < len(self.gis_vars):
+        if 0 < len(self.gis_dims) and 0 < len(self.gis_vars):
             for gis_var in self.gis_vars:
                 nc_tools.copy_variable(to_nc, gis_var)
         
@@ -330,13 +363,9 @@ class CF_Corrector:
             print('=============== variables_results', variables_results)
         
         from_nc = nc_tools.open_nc_Dataset(from_nc_name)
-        
-        extra_dims = []
-        if self.gis_dim_x is not None:
-            extra_dims.append(self.gis_dim_x)
-        if self.gis_dim_y is not None:
-            extra_dims.append(self.gis_dim_y)
-        to_nc   = nc_tools.create_nc_from(to_nc_name, from_nc, extra_dims)
+        to_nc   = nc_tools.create_nc_from(to_nc_name, from_nc, self.gis_dims)
+        if debug:
+            print(' == DEBUG correct()  new global dimensions: ', to_nc.dimensions)
         
         for category in categories:
             if category == 'VERSION':
@@ -349,9 +378,12 @@ class CF_Corrector:
         
         gis_attrs = self.gis_attrs
         results_var_names = variables_results.keys()
+        new_dims = self.new_alt_dims if self.subgrid_first else self.new_dims
+        if debug:
+            print('   === DEBUG correct() dimension sfor variable: ', new_dims)
         for var_name in from_nc.variables.keys():
             from_var = from_nc.variables[var_name]
-            to_var = nc_tools.copy_variable(to_nc, from_var)
+            to_var = nc_tools.copy_variable(to_nc, from_var, new_dims)
             
             if var_name in results_var_names:
                 cf_results = variables_results.get(var_name)
@@ -412,9 +444,8 @@ class CF_Corrector:
         return (check_code, message)
     def set_gis_data(self, gis_data):
         self.gis_attrs = gis_data[0]
-        self.gis_dim_x = gis_data[1]
-        self.gis_dim_y = gis_data[2]
-        self.gis_vars  = gis_data[3]
+        self.gis_dims  = gis_data[1]
+        self.gis_vars  = gis_data[2]
 
     #VARIABLE_IGNORE_CODES = {
     #      '2.1': ["Filename must have .nc suffix"],
@@ -426,6 +457,7 @@ class CF_aux_tools:
     def collect_gis_data(gis_input_name):
         method_name = 'collect_gis_data()'
         debug = False
+        debug = not debug
 
         #if debug:
         #    print("{m} is called".format(m=method_name))
@@ -444,27 +476,22 @@ class CF_aux_tools:
         #if grid_mapping_key in gis_attrs.keys():
         #    grid_mapping_var = gis_attrs[grid_mapping_key]
 
-        dim_x = None
-        dim_y = None
+        dims = []
+        dim_keys = []
         variables = []
         for var_name in var_names:
             var = gis_input_nc.variables.get(var_name, None)
             if var is not None:
-                if dim_x is None or dim_y is None:
-                    for dim_name in var.dimensions:
-                        if dim_x is None and dim_name == 'x':
-                            dim_x = gis_input_nc.dimensions[dim_name]
-                        if dim_y is None and dim_name == 'y':
-                            dim_y = gis_input_nc.dimensions[dim_name]
+                variables.append(var)
                 #if debug:
                 #    print("{m} DEBUG dimensions: {d}".format(m=method_name, d=var.dimensions))
-                variables.append(var)
+                for dim_name in var.dimensions:
+                    if not dim_name in dim_keys:
+                        dim_keys.append(dim_name)
+                        dims.append(gis_input_nc.dimensions[dim_name])
             
         del gis_input_nc
-        if debug:
-            print("{m} DEBUG dim_x: {dx} dim_y: {dy} variables: {v}".format(
-                    m=method_name, dx=dim_x, dy=dim_y, v=variables))
-        return gis_attrs, dim_x, dim_y, variables
+        return gis_attrs, dims, variables
         
     @staticmethod
     def make_output_names(in_files, output_dir):
@@ -518,7 +545,10 @@ def main():
             print('{p} The "-o" or "--output-name" options is not allowed for multiple input files.\nPLease set --out-dir option.'.format(
                     p=ERROR_P))
             sys.exit(-1)
-        out_files = [options.out_name]
+        out_nc_name = options.out_name
+        if not out_nc_name.endswith(".nc"):
+            out_nc_name += ".nc"
+        out_files = [out_nc_name]
     
     if options.gis_input_nc is None:
         print("{p} The GIS input file is missing. Please set it with --gis-input.".format(
