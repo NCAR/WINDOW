@@ -611,6 +611,7 @@ if __name__ == '__main__':
     GeoTransform_reg = GeoTransform
     GeoTransform_alt = None
     if has_subgrid:
+        GeoTransform_alt = GeoTransform_subgrid
         Xsize_subgrid = (Xsize+1)*sub_grid_factor
         Ysize_subgrid = (Ysize+1)*sub_grid_factor
         if subgrid_first:
@@ -621,14 +622,13 @@ if __name__ == '__main__':
             GeoTransform_alt = GeoTransform
             GeoTransform_reg = GeoTransform_subgrid
         else:
-            GeoTransform_reg = GeoTransform
             Xsize_alt = Xsize_subgrid
             Ysize_alt = Ysize_subgrid
     # Gather 1D coordinates using data array size and geotransform
     xarr, yarr = getXY(GeoTransform, Xsize_reg, Ysize_reg, flipY=True)                       # Use affine transformation to calculate cell coordinates
 
     # Create spatial metadata file for GEOGRID/LDASOUT grids
-    rootgrp = nc_tools.create_nc_Dataset(out_nc, format=outNCType)                    # Open write object (create) on output netCDF file
+    rootgrp = nc_tools.create_nc_Dataset(out_nc, nc_format=outNCType)                    # Open write object (create) on output netCDF file
     rootgrp, append_vars = create_CF_NetCDF(rootgrp, dataArr, proj, map_pro, projdir, DX, DY,
         GeoTransform_reg, Xsize_reg, Ysize_reg, addLatLon=addLatLon, WKT_Esri=PE_stringEsri,
         WKT_GDAL=PE_stringGDAL, addData=addData, GeoTransform_alt=GeoTransform_alt,

@@ -33,7 +33,7 @@ class nc_tools:
         debug = not debug
         dims = [ dim if new_dims.get(dim,None) is None else new_dims[dim] for dim in from_var.dimensions]
         if debug:
-            print('   DEBUG copy_variable() var: {v} dims: {d}'.format(v=from_var.name, d=dims))
+            print('   DEBUG copy_variable() var: {v} dims: {d} from {o}'.format(v=from_var.name, d=dims, o=from_var.dimensions))
         to_var = nc_out.createVariable(from_var.name, from_var.dtype, dims)
         to_var[:] = from_var[:]
         for attr_name in from_var.ncattrs():
