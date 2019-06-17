@@ -22,6 +22,7 @@ FIXME_P  = "  == FIX ME =="
 CHECKME_P  = "  -- CHECK ME --"
 
 OPT_GIS_INPUT_Required = False
+OPT_add_time_dim = True
 
 def create_parser():
     usage_str = "%prog [options] "
@@ -271,17 +272,21 @@ class CF_Corrector:
     def add_gis_attrs(self, to_var):
         method_name = 'CF_Corrector.add_gis_attrs()'
         debug = False
-        debug = not debug
+        #debug = not debug
         nc_dims = to_var.get_dims()
         if 1 >= len(nc_dims):
             return
         
-        has_subgrid = False
+        has_sub_dim = False
+        has_time_dim = False
         for dim in nc_dims:
             dim_name = dim.name 
             if dim_name.endswith('_alt'):
-                has_subgrid = True
-                break;
+                has_sub_dim = True
+            elif 'time' == dim_name.lower():
+                has_time_dim = True
+        
+        var_name = to_var.name
         nc_attr_names = to_var.ncattrs()
         
         attr_key = 'long_name'
@@ -298,11 +303,32 @@ class CF_Corrector:
                 if nc_attr == 'time':
                     return
         
-        #attr_key = 'coordinates'
+        attr_key = 'coordinates'
         #has_coordinates_attr = False
-        #if attr_key in nc_attr_names: 
-        #    nc_attr = to_var.getncattr(attr_key)
-        #    has_coordinates_attr= (nc_attr is not None)
+        if attr_key in nc_attr_names: 
+            nc_attr = to_var.getncattr(attr_key)
+            has_coordinates_attr = (nc_attr is not None)
+            if has_coordinates_attr:
+                if debug:
+                    print("{m} DEBUG ===== {k}={v} for {vn}".format(
+                                m=method_name, k=attr_key, v=nc_attr,vn=var_name))
+                new_nc_attr = nc_attr
+                #if "XLONG XLAT XTIME" == nc_attr and 'time' == nc_dims[0].name.lower():
+                if "XLONG XLAT XTIME" == nc_attr:
+                    #nc_attr = "XTIME XLAT XLONG"
+                    new_nc_attr = "XTIME XLAT XLONG"
+                elif "XLONG XLAT" == nc_attr:
+                    #nc_attr = "XTIME XLAT XLONG"
+                    new_nc_attr = "XLAT XLONG"
+                if has_sub_dim:
+                    new_nc_attr = new_nc_attr.replace('XLAT', 'y_alt').replace('XLONG', 'x_alt')
+                else:
+                    new_nc_attr = new_nc_attr.replace('XLAT', 'y').replace('XLONG', 'x')
+                
+                if new_nc_attr != nc_attr:
+                    to_var.setncattr(attr_key, new_nc_attr)
+                    print("{m} Updated {k}={v} for {vn}".format(
+                            m=method_name, k=attr_key, v=new_nc_attr,vn=var_name))
 
         gis_attrs = self.gis_attrs
         if 0 < len(gis_attrs):
@@ -310,6 +336,7 @@ class CF_Corrector:
                 if 'WINDOW_append_vars' == attr_key:
                     continue
                 
+                attr_value = gis_attrs[attr_key]
                 nc_raw_key = attr_key[len('WINDOW_'):]
                 is_alt_key = False
                 nc_key = nc_raw_key
@@ -322,24 +349,28 @@ class CF_Corrector:
                 
                 if nc_key in nc_attr_names:
                     if debug:
-                        print('{p} {m} Exist attribute {k} already'.format(p=DEBUG_P, m=method_name, k=nc_key))
+                        print('{p} {m} Exist attribute {k} for {vn} already'.format(
+                                p=DEBUG_P, m=method_name, k=nc_key, vn=var_name))
                     continue
                 
                 if debug:
-                    print('{p} {m} gis_attr: {ko} => {k} = {v}'.format(p=DEBUG_P, m=method_name, \
-                            ko=nc_raw_key, k=nc_key, v=gis_attrs[attr_key]))
+                    print('{p} {m} gis_attr: {ko} => {k} = {v} for {vn}'.format(p=DEBUG_P, m=method_name, \
+                            ko=nc_raw_key, k=nc_key, v=attr_value, vn=var_name))
                 if ('grid_mapping' == nc_key or 'CoordinateSystems' == nc_key):
-                    if is_alt_key != has_subgrid:
+                    if is_alt_key != has_sub_dim:
                         if debug:
-                            print('{p} {m} Ignored attribute {k} because is_alt_key={a} vs. has_subgrid={s}'.format(
-                                    p=DEBUG_P, m=method_name, k=nc_raw_key, a=is_alt_key, s=has_subgrid))
+                            print('{p} {m} Ignored attribute {k} because is_alt_key={a} vs. has_sub_dim={s} for {vn}'.format(
+                                    p=DEBUG_P, m=method_name, k=nc_raw_key, a=is_alt_key, s=has_sub_dim, vn=var_name))
                             continue
+                    
+                    if has_time_dim and OPT_add_time_dim:
+                        attr_value = attr_value + '_t'
                 #elif nc_key != 'esri_pe_string':
                 #    if has_coordinates_attr:
                 #        continue
                 
-                to_var.setncattr(nc_key, gis_attrs[attr_key])
-                print("adding {k}={v}".format(k=nc_key, v=gis_attrs[attr_key]))
+                to_var.setncattr(nc_key, attr_value)
+                print("{m} adding {k}={v} for {vn}".format(m=method_name, k=nc_key, v=attr_value,vn=var_name))
         
 #     def add_gis_dimensions(self, to_nc):
 #         method_name = "add_gis_dimensions()"
@@ -355,7 +386,7 @@ class CF_Corrector:
     def add_gis_vars(self, to_nc, new_dims={}):
         method_name = "add_gis_vars()"
         debug = False
-        debug = not debug
+        #debug = not debug
         if debug:
             print("{m} is called, global_dims: {d}".format(m=method_name, d=to_nc.dimensions))
         #if self.gis_dim_x is not None and self.gis_dim_y is not None and 0 < len(self.gis_vars):
@@ -479,7 +510,7 @@ class CF_aux_tools:
     def collect_gis_data(gis_input_name):
         method_name = 'collect_gis_data()'
         debug = False
-        debug = not debug
+        #debug = not debug
 
         #if debug:
         #    print("{m} is called".format(m=method_name))

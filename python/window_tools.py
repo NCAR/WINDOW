@@ -26,15 +26,18 @@ class nc_tools:
             #print('\t%s:' % attr_name, repr(from_nc.getncattr(attr_name)))
             to_nc.setncattr(attr_name, from_nc.getncattr(attr_name))
         
-    SKIP_Attrs= [ "_FillValue"]
+    #SKIP_Attrs= [ "_FillValue", 'coordinates']
+    SKIP_Attrs= [ '_FillValue']
     @staticmethod
-    def copy_variable(nc_out, from_var, new_dims={}):
-        debug = False
+    def copy_variable(nc_out, from_var, new_dims={}, var_name=None):
+        debug = False 
         debug = not debug
+        if var_name is None:
+            var_name = from_var.name
         dims = [ dim if new_dims.get(dim,None) is None else new_dims[dim] for dim in from_var.dimensions]
         if debug:
             print('   DEBUG copy_variable() var: {v} dims: {d} from {o}'.format(v=from_var.name, d=dims, o=from_var.dimensions))
-        to_var = nc_out.createVariable(from_var.name, from_var.dtype, dims)
+        to_var = nc_out.createVariable(var_name, from_var.dtype, dims)
         to_var[:] = from_var[:]
         for attr_name in from_var.ncattrs():
             if attr_name in nc_tools.SKIP_Attrs:
@@ -42,6 +45,11 @@ class nc_tools:
                     a=attr_name, v=from_var.name, av=from_var.getncattr(attr_name)))
                 continue
             to_var.setncattr(attr_name, from_var.getncattr(attr_name))
+        if 'XTIME' == var_name or 'XTIME' == from_var.name:
+            attr_name = '_CoordinateAxisType'
+            if not attr_name in from_var.ncattrs():
+                to_var.setncattr(attr_name, 'Time')
+                
         return to_var
         
     @staticmethod

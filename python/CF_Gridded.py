@@ -36,6 +36,10 @@ import osr
 
 from window_tools import nc_tools
 
+
+OPT_shift_to_center = True
+OPT_add_time_dim = True
+
 # --- Module Configurations --- #
 sys.dont_write_bytecode = True                                                  # Do not write compiled (.pyc) files
 # --- End Module Configurations --- #
@@ -282,6 +286,17 @@ def add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, PE_stringEs
             proj_var.inverse_flattening = float(0)
         pass
 
+    if OPT_add_time_dim:
+        postfix ='_t'
+        proj_t_var = nc_tools.copy_variable(rootgrp, proj_var, var_name=CoordSysVarName + postfix)
+        #proj_t_var.transform_name = grid_mapping + postfix                          # grid_mapping. grid_mapping_name is an alias for this
+        proj_t_var.transform_name = grid_mapping                                     # grid_mapping. grid_mapping_name is an alias for this
+        proj_t_var.grid_mapping_name = grid_mapping + postfix                        # for CF compatibility
+        proj_t_var.long_name = "CRS definition with time"                            # Added 10/13/2017 by KMS to match GDAL format
+        #proj_t_var._CoordinateAxes = 't ' + coordinateAxesName                        # Coordinate systems variables always have a _CoordinateAxes attribute, optional for dealing with implicit coordinate systems
+        proj_t_var._CoordinateAxes = 't ' + coordinateAxesName                        # Coordinate systems variables always have a _CoordinateAxes attribute, optional for dealing with implicit coordinate systems
+        proj_t_var._CoordinateAxes = 'XTIME ' + coordinateAxesName                    # Coordinate systems variables always have a _CoordinateAxes attribute, optional for dealing with implicit coordinate systems
+
     # Global attributes related to CF-netCDF
     rootgrp.Conventions = CFConv
     return rootgrp
@@ -299,10 +314,13 @@ def getXY(GeoTransformStr, nx, ny, flipY=True):
     gt = [float(item) for item in GeoTransformStr.split(' ')]
 
     # Build i,j arrays
-    #j = numpy.arange(dataArr.shape[0]) + float(0.5)                             # Add 0.5 to estimate coordinate of grid cell centers
-    #i = numpy.arange(dataArr.shape[1]) + float(0.5)                             # Add 0.5 to estimate coordinate of grid cell centers
-    j = numpy.arange(nx) + float(0.5)                             # Add 0.5 to estimate coordinate of grid cell centers
-    i = numpy.arange(ny) + float(0.5)                             # Add 0.5 to estimate coordinate of grid cell centers
+    #j = numpy.arange(dataArr.shape[0])
+    #i = numpy.arange(dataArr.shape[1])
+    j = numpy.arange(nx)
+    i = numpy.arange(ny)
+    if OPT_shift_to_center:
+        j = j + float(0.5)                             # Add 0.5 to estimate coordinate of grid cell centers
+        i = i + float(0.5)                             # Add 0.5 to estimate coordinate of grid cell centers
 
     # col, row to x, y   From https://www.perrygeo.com/python-affine-transforms.html
     x = (i * gt[1]) + gt[0]
@@ -311,6 +329,8 @@ def getXY(GeoTransformStr, nx, ny, flipY=True):
     if flipY:
         y = y[::-1]
     print('    1D Coordinate variables calculated in {0: 8.2f} seconds.'.format(time.time()-tic1))
+    #print('     DEBUG ====  getXY: x: ', x[0] , ' to  ', x[-1], ' y: ', y[0],' to ', y[-1], ' length=', len(y))
+    #print('     DEBUG ====  getXY: from gt[1]: ', gt[1] , ' gt[0]: ', gt[0], ' gt[5]: ', gt[5],' gt[3]: ', gt[3])
     return x, y
 
 
@@ -335,12 +355,25 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
         print('    Map Projection of input raster (not a WRF projection): %s' %grid_mapping)
 
     # Create Dimensions
+    reg_dx = float(DX)
+    reg_dy = float(DY)
+    sub_dx = reg_dx
+    sub_dy = reg_dy
     dim_y = rootgrp.createDimension('y', Ysize)
     dim_x = rootgrp.createDimension('x', Xsize)
     has_subgrid = (0 < Ysize_alt) and (0 < Xsize_alt)
     if has_subgrid:
+        my_subgrid_factor = int(round(Xsize_alt / Xsize)) if Xsize_alt > Xsize else int(round(Xsize / Xsize_alt)) 
         dim_y_sub = rootgrp.createDimension('y_alt', Ysize_alt)
         dim_x_sub = rootgrp.createDimension('x_alt', Xsize_alt)
+        if Xsize > Xsize_alt:
+            reg_dx = reg_dx / my_subgrid_factor
+        else:
+            sub_dx = reg_dx / my_subgrid_factor
+        if Ysize > Ysize_alt:
+            reg_dy = reg_dy / my_subgrid_factor
+        else:
+            sub_dy = reg_dy / my_subgrid_factor
     print('    Dimensions created after {0: 8.2f} seconds.'.format(time.time()-tic1))
 
     append_vars = []
@@ -400,31 +433,35 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
         var_x.units = proj_units                                                # was 'meter', now 'm'
         var_y._CoordinateAxisType = "GeoY"                                      # Use GeoX and GeoY for projected coordinate systems only
         var_x._CoordinateAxisType = "GeoX"                                      # Use GeoX and GeoY for projected coordinate systems only
-        var_y.resolution = float(DY)                                            # Added 11/3/2016 by request of NWC
-        var_x.resolution = float(DX)                                            # Added 11/3/2016 by request of NWC
+        var_y.resolution = reg_dy                                               # Added 11/3/2016 by request of NWC
+        var_x.resolution = reg_dx                                               # Added 11/3/2016 by request of NWC
 
         if var_y_subgrid is not None:
-            var_y_subgrid.standard_name = 'projection_y_sub_coordinate'
-            var_y_subgrid.long_name = 'y_sub coordinate of projection'
+            var_y_subgrid.standard_name = 'projection_y_alt_coordinate'
+            var_y_subgrid.long_name = 'y_alt coordinate of projection'
             var_y_subgrid.units = var_y.units
             var_y_subgrid._CoordinateAxisType = var_y._CoordinateAxisType
-            var_y_subgrid.resolution = float(DY) / sub_grid_factor
+            var_y_subgrid.resolution = sub_dy
         if var_x_subgrid is not None:
-            var_x_subgrid.standard_name = 'projection_x_sub_coordinate'
-            var_x_subgrid.long_name = 'x_sub coordinate of projection'
+            var_x_subgrid.standard_name = 'projection_x_alt_coordinate'
+            var_x_subgrid.long_name = 'x_alt coordinate of projection'
             var_x_subgrid.units = var_x.units
             var_x_subgrid._CoordinateAxisType = var_x._CoordinateAxisType
-            var_x_subgrid.resolution = float(DX) / sub_grid_factor
+            var_x_subgrid.resolution = sub_dx
 
         # Build coordinate reference system variable
         rootgrp = add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, WKT_Esri, WKT_GDAL, GeoTransformStr)
         append_vars.append(CoordSysVarName)
+        if rootgrp.variables.get(CoordSysVarName + "_t", None) is not None:
+            append_vars.append(CoordSysVarName + "_t")
         if GeoTransform_alt is not None:
             sub_CoordSysVarName = CoordSysVarName + "_alt"
             add_CRS_var(rootgrp, sr, map_pro, sub_CoordSysVarName, grid_mapping, WKT_Esri, WKT_GDAL, GeoTransform_alt, 'y_alt x_alt')
             append_vars.append(sub_CoordSysVarName)
             rootgrp.setncattr('WINDOW_grid_mapping_alt', sub_CoordSysVarName)
             rootgrp.setncattr('WINDOW_CoordinateSystems_alt', sub_CoordSysVarName)
+            if rootgrp.variables.get(sub_CoordSysVarName + "_t", None) is not None:
+                append_vars.append(sub_CoordSysVarName + "_t")
 
     if 0 < len(WKT_Esri):
         rootgrp.setncattr('WINDOW_esri_pe_string', WKT_Esri)
@@ -625,7 +662,7 @@ if __name__ == '__main__':
             Xsize_alt = Xsize_subgrid
             Ysize_alt = Ysize_subgrid
     # Gather 1D coordinates using data array size and geotransform
-    xarr, yarr = getXY(GeoTransform, Xsize_reg, Ysize_reg, flipY=True)                       # Use affine transformation to calculate cell coordinates
+    xarr, yarr = getXY(GeoTransform_reg, Xsize_reg, Ysize_reg, flipY=True)                       # Use affine transformation to calculate cell coordinates
 
     # Create spatial metadata file for GEOGRID/LDASOUT grids
     rootgrp = nc_tools.create_nc_Dataset(out_nc, nc_format=outNCType)                    # Open write object (create) on output netCDF file
