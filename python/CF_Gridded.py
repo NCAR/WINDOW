@@ -577,20 +577,17 @@ def process_arguments(argv):
     sub_grid_factor = 1
     subgrid_first = False
     
-    arg_index += 1
     projdir = os.path.dirname(in_nc)
-    if 2 < arg_count:
-        if not argv[arg_index].isdigit() and not argv[arg_index].startswith('subgrid_'):
-            out_nc = argv[arg_index]
-            arg_index += 1
+    print("  arg_count", arg_count)
+    
+    for arg_index in range(1,arg_count):
         if argv[arg_index].isdigit():
             sub_grid_factor = int(argv[arg_index])
-            arg_index += 1
-        elif argv[arg_index].startswith('subgrid_factor'):
-            sub_grid_factor = int(argv[arg_index].split('=')[1])
-            arg_index += 1
-        if (arg_index < arg_count) and 'subgrid_first' == argv[arg_index]:
-            subgrid_first = True
+        elif argv[arg_index].startswith('subgrid_'):
+            subgrid_first = (argv[arg_index] != 'subgrid_next')
+        else:
+            out_nc = argv[arg_index]
+
     if out_nc is None:
         out_nc = os.path.join(projdir, os.path.basename(in_nc).replace('.nc', '_spatial.nc'))
     return in_nc, out_nc, sub_grid_factor, subgrid_first
