@@ -361,7 +361,7 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
     sub_dy = reg_dy
     dim_y = rootgrp.createDimension('y', Ysize)
     dim_x = rootgrp.createDimension('x', Xsize)
-    has_subgrid = (0 < Ysize_alt) and (0 < Xsize_alt)
+    has_subgrid = (0 < Ysize_alt) and (0 < Xsize_alt) and (Ysize != Ysize_alt) and (Xsize != Xsize_alt)
     if has_subgrid:
         my_subgrid_factor = int(round(Xsize_alt / Xsize)) if Xsize_alt > Xsize else int(round(Xsize / Xsize_alt)) 
         dim_y_sub = rootgrp.createDimension('y_alt', Ysize_alt)
@@ -644,6 +644,8 @@ if __name__ == '__main__':
 
     Xsize_reg = Xsize
     Ysize_reg = Ysize
+    Xsize_alt = Xsize
+    Ysize_alt = Ysize
     has_subgrid = sub_grid_factor > 1
     GeoTransform_reg = GeoTransform
     GeoTransform_alt = None
@@ -652,8 +654,6 @@ if __name__ == '__main__':
         Xsize_subgrid = (Xsize+1)*sub_grid_factor
         Ysize_subgrid = (Ysize+1)*sub_grid_factor
         if subgrid_first:
-            Xsize_alt = Xsize
-            Ysize_alt = Ysize
             Xsize_reg = Xsize_subgrid
             Ysize_reg = Ysize_subgrid
             GeoTransform_alt = GeoTransform
