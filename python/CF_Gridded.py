@@ -316,8 +316,8 @@ def getXY(GeoTransformStr, nx, ny, flipY=True):
     # Build i,j arrays
     #j = numpy.arange(dataArr.shape[0])
     #i = numpy.arange(dataArr.shape[1])
-    j = numpy.arange(nx)
-    i = numpy.arange(ny)
+    j = numpy.arange(ny)
+    i = numpy.arange(nx)
     if OPT_shift_to_center:
         j = j + float(0.5)                             # Add 0.5 to estimate coordinate of grid cell centers
         i = i + float(0.5)                             # Add 0.5 to estimate coordinate of grid cell centers
@@ -385,6 +385,8 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
     var_x = rootgrp.createVariable('x', 'f8', dim_x.name)                        # (64-bit floating point)
     append_vars.append('x')
     append_vars.append('y')
+    var_y_subgrid = None
+    var_x_subgrid = None
     if has_subgrid:
         var_y_subgrid = rootgrp.createVariable('y_alt', 'f8', dim_y_sub.name)        # (64-bit floating point)
         var_x_subgrid = rootgrp.createVariable('x_alt', 'f8', dim_x_sub.name)        # (64-bit floating point)
@@ -407,14 +409,15 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
         var_x.units = "degrees_east"
         var_y._CoordinateAxisType = "Lat"
         var_x._CoordinateAxisType = "Lon"
-        if var_y_subgrid is not None:
-            var_y_subgrid.long_name = "latitude sub coordinate"
-            var_y_subgrid.units = var_y.units
-            var_y_subgrid._CoordinateAxisType = var_y._CoordinateAxisType
-        if var_x_subgrid is not None:
-            var_x_subgrid.long_name = "longitude sub coordinate"
-            var_x_subgrid.units = var_x.units
-            var_x_subgrid._CoordinateAxisType = var_x._CoordinateAxisType
+        if has_subgrid:
+            if var_y_subgrid is not None:
+                var_y_subgrid.long_name = "latitude sub coordinate"
+                var_y_subgrid.units = var_y.units
+                var_y_subgrid._CoordinateAxisType = var_y._CoordinateAxisType
+            if var_x_subgrid is not None:
+                var_x_subgrid.long_name = "longitude sub coordinate"
+                var_x_subgrid.units = var_x.units
+                var_x_subgrid._CoordinateAxisType = var_x._CoordinateAxisType
 
     elif proj.IsProjected():
         if crsVarname:
@@ -436,18 +439,19 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
         var_y.resolution = reg_dy                                               # Added 11/3/2016 by request of NWC
         var_x.resolution = reg_dx                                               # Added 11/3/2016 by request of NWC
 
-        if var_y_subgrid is not None:
-            var_y_subgrid.standard_name = 'projection_y_alt_coordinate'
-            var_y_subgrid.long_name = 'y_alt coordinate of projection'
-            var_y_subgrid.units = var_y.units
-            var_y_subgrid._CoordinateAxisType = var_y._CoordinateAxisType
-            var_y_subgrid.resolution = sub_dy
-        if var_x_subgrid is not None:
-            var_x_subgrid.standard_name = 'projection_x_alt_coordinate'
-            var_x_subgrid.long_name = 'x_alt coordinate of projection'
-            var_x_subgrid.units = var_x.units
-            var_x_subgrid._CoordinateAxisType = var_x._CoordinateAxisType
-            var_x_subgrid.resolution = sub_dx
+        if has_subgrid:
+            if var_y_subgrid is not None:
+                var_y_subgrid.standard_name = 'projection_y_alt_coordinate'
+                var_y_subgrid.long_name = 'y_alt coordinate of projection'
+                var_y_subgrid.units = var_y.units
+                var_y_subgrid._CoordinateAxisType = var_y._CoordinateAxisType
+                var_y_subgrid.resolution = sub_dy
+            if var_x_subgrid is not None:
+                var_x_subgrid.standard_name = 'projection_x_alt_coordinate'
+                var_x_subgrid.long_name = 'x_alt coordinate of projection'
+                var_x_subgrid.units = var_x.units
+                var_x_subgrid._CoordinateAxisType = var_x._CoordinateAxisType
+                var_x_subgrid.resolution = sub_dx
 
         # Build coordinate reference system variable
         rootgrp = add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, WKT_Esri, WKT_GDAL, GeoTransformStr)
@@ -681,16 +685,27 @@ if __name__ == '__main__':
     # Fill in  x and y variables
     if debug:
         print('   DEBUG main() Xsize_reg: ', Xsize_reg, " len(xarr)=", len(xarr))
-    rootgrp.variables['y'][:] = yarr[:]
-    rootgrp.variables['x'][:] = xarr[:]
+    try:
+        rootgrp.variables['y'][:] = yarr[:]
+        rootgrp.variables['x'][:] = xarr[:]
+    except IndexError as ex:
+        if len(yarr) != len(rootgrp.variables['y'][:]):
+            print(' ERROR  the array size does not match: from {s1} to {s2}. Xsize: {x}, Ysize: {y}'.format(
+                    s1=len(yarr), s2=len(rootgrp.variables['y'][:]), x=Xsize_reg, y=Ysize_reg))
+        raise ex
     del yarr, xarr
 
     if has_subgrid:
         xarr_sub, yarr_sub = getXY(GeoTransform_subgrid, Xsize_alt, Ysize_alt, flipY=True)           # Use affine transformation to calculate cell coordinates
         if debug:
             print('   DEBUG length of yarr_sub: {l}'.format(l=len(yarr_sub)))
-        rootgrp.variables['y_alt'][:] = yarr_sub[:]
-        rootgrp.variables['x_alt'][:] = xarr_sub[:]
+        try:
+            rootgrp.variables['y_alt'][:] = yarr_sub[:]
+            rootgrp.variables['x_alt'][:] = xarr_sub[:]
+        except IndexError as ex:
+            if len(yarr) != len(rootgrp.variables['y'][:]):
+                print(' ERROR  the array size does not match: from {s1} to {s2}. Xsize_alt: {x}, Ysize_alt: {y}'.format(
+                        s1=len(yarr_sub), s2=len(rootgrp.variables['y_alt'][:]), x=Xsize_alt, y=Ysize_alt))
         del yarr_sub, xarr_sub
         
     # Add additional metadata to the output file
