@@ -8,7 +8,8 @@ from netCDF4 import Dataset as nc4_Dataset
 from netCDF4 import Variable as nc4_Variable
 
 class nc_tools:
-
+    debug = False
+    
     @staticmethod
     def copy_dimensions(from_nc, to_nc):
         to_nc_dims = {}
@@ -26,12 +27,11 @@ class nc_tools:
             #print('\t%s:' % attr_name, repr(from_nc.getncattr(attr_name)))
             to_nc.setncattr(attr_name, from_nc.getncattr(attr_name))
         
-    #SKIP_Attrs= [ "_FillValue", 'coordinates']
-    SKIP_Attrs= [ '_FillValue']
+    SKIP_Attrs = [ '_FillValue']
     @staticmethod
     def copy_variable(nc_out, from_var, new_dims={}, var_name=None):
         debug = False 
-        debug = not debug
+        debug = debug or nc_tools.debug
         if var_name is None:
             var_name = from_var.name
         dims = [ dim if new_dims.get(dim,None) is None else new_dims[dim] for dim in from_var.dimensions]
@@ -89,3 +89,7 @@ class nc_tools:
     @staticmethod
     def open_nc_Dataset(nc_name):
         return nc4_Dataset(nc_name, "r")
+
+    @staticmethod
+    def set_debug_option(debug):
+        nc_tools.debug = debug
