@@ -26,7 +26,7 @@ import sys
 import os
 import time
 import math
-
+from optparse import OptionParser
 # Import Additional Modules
 import numpy
 #import netCDF4
@@ -53,13 +53,20 @@ sys.dont_write_bytecode = True                                                  
 #out_nc = os.path.join(projdir, os.path.basename(in_nc).replace('.nc', '_spatial.nc'))
 geogridVariable = 'HGT_M'                                                       # 2D Variable in the GEOGRID file to use in defining the grid
 processing_notes_SM = 'Created for testing WINDOW AIR converter'                # Notes section appended to the output netCDF file as a global attribute
-XYmap = {'x': 'west_east', 'y': 'south_north'}                                  # Dictionary to define mapping between (x,y) and input file dimension names
 
 # Latitude and Longitude 2D array information
 addLatLon = True                                                                # Add Latitude and Longitude variables to output file?
 addData = True                                                                  # Switch to add data variable defined in 'geogridVariable' to output
 latVar = 'XLAT_M'                                                               # Latitude variable in the input file (must be on grid cell center)
 lonVar = 'XLONG_M'                                                              # Longitude variable in the input file (must be on grid cell center)
+
+XYmap = {                                                                       # Dictionary to define mapping between (x,y) and input file dimension names
+        'x': 'west_east',
+        'y': 'south_north',
+        'geo_name': geogridVariable,
+        'lat_name': latVar, 
+        'lon_name': lonVar 
+    }
 
 # Initiate dictionaries of GEOGRID projections and parameters
 #   See http://www.mmm.ucar.edu/wrf/users/docs/user_guide_V3/users_guide_chap3.htm#_Description_of_the_1
@@ -564,7 +571,28 @@ def gdal_error_handler(err_class, err_num, err_msg):
     print('Error Type: %s' % (err_class))
     print('Error Message: %s' % (err_msg))
     
-def process_arguments(argv):
+def create_parser():
+    usage_str = "%prog [options] "
+    parser = OptionParser(usage = usage_str)
+    parser.add_option("-o", "--output-name", "--output_name", dest="out_name", default=None,
+            help=" output name. must have nc extension, optional")
+    parser.add_option('--lat-var','--lat_var', dest="lat_var", default=None,
+            help=" variable name for latitude - optional")
+    parser.add_option('--lon-var','--lon_var', dest="lon_var", default=None,
+            help=" variable name for longitude - optional")
+    parser.add_option('--geo-var','--geo_var', dest="geo_var", default=None,
+             help=" variable name to override where to save the grid information - optional")
+    parser.add_option('-x','--x_dim', dest="x_dim", help=" dimension name for longitude" , default=None)
+    parser.add_option('-y','--y_dim', dest="y_dim", help=" dimension name for latitude" , default=None)
+    parser.add_option("-d", dest="debug", action="store_true", default=False,
+            help=" Enable debug - optional")
+
+    return parser
+
+
+def process_arguments(options_args):
+    options = options_args[0]
+    argv = options_args[1]
     arg_index = 0
     arg_count = len(argv)
     in_nc = argv[arg_index]
@@ -572,6 +600,17 @@ def process_arguments(argv):
         print(" ==ERROR == The input geogrid file [{i}] does not exist!!!".format(i=in_nc))
         print("            Quit...")
         sys.exit(-2);
+
+    if options.lat_var is not None:
+        XYmap['lat_name'] = options.lat_var
+    elif options.lon_var is not None:
+        XYmap['lon_name'] = options.lon_var
+    elif options.geo_var is not None:
+        XYmap['geo_name'] = options.geo_var
+    elif options.x_dim is not None:
+        XYmap['x'] = options.x_dim
+    elif options.y_dim is not None:
+        XYmap['y'] = options.y_dim
     
     out_nc = None
     sub_grid_factor = 1
@@ -582,11 +621,30 @@ def process_arguments(argv):
     
     for arg_index in range(1,arg_count):
         if argv[arg_index].isdigit():
-            sub_grid_factor = int(argv[arg_index])
+            tmp_sub_grid_factor = int(argv[arg_index])
+            if tmp_sub_grid_factor > 0:
+                sub_grid_factor = tmp_sub_grid_factor
         elif argv[arg_index].startswith('subgrid_'):
             subgrid_first = (argv[arg_index] != 'subgrid_next')
         else:
-            out_nc = argv[arg_index]
+            key_pair = argv[arg_index].split('=')
+            if 1 == len(key_pair):
+                if out_nc is None:
+                    out_nc = argv[arg_index]
+            elif key_pair[0].startswith('subgrid_factor'):
+                tmp_sub_grid_factor = int(key_pair[1].strip())
+                if tmp_sub_grid_factor > 0:
+                    sub_grid_factor = tmp_sub_grid_factor
+            #elif key_pair[0].startswith('lat'):
+            #    XYmap['lat_name'] = key_pair[1].strip()
+            #elif key_pair[0].startswith('lon'):
+            #    XYmap['lon_name'] = key_pair[1].strip()
+            #elif key_pair[0].startswith('geo_grid'):
+            #    XYmap['geo_name'] = key_pair[1].strip()
+            #elif key_pair[0].startswith('x'):
+            #    XYmap['x'] = key_pair[1].strip()
+            #elif key_pair[0].startswith('y'):
+            #    XYmap['y'] = key_pair[1].strip()
 
     if out_nc is None:
         out_nc = os.path.join(projdir, os.path.basename(in_nc).replace('.nc', '_spatial.nc'))
@@ -596,9 +654,15 @@ def show_help(app_name):
     print(" Usage {p} input_geogrid_file [output_geogrid_file]".format(p=app_name))
     print("     input_geogrid_file: input geogrid file name, required")
     print("    output_geogrid_file: output geogrid file name, optional, default: <input>_spatial.nc")
-    print("   <subgrid_factor=DD>: integer to make sub_grid dimension, optional")
-    print("   <subgrid_first>: string 'subgrid_first' to make sub_grid dimension, optional")
-    
+    print("     <subgrid_factor=D>: integer to make sub_grid dimension, optional")
+    print("   <--subgrid_factor=D>: integer to make sub_grid dimension, optional")
+    print("        <subgrid_first>: string 'subgrid_first' to make sub_grid dimension, optional")
+    print("               <-x=longitude_dim_name>: dimension name for longitude, optional, default: west_east")
+    print("                <-y=latitude_dim_name>: dimension name for latitude, optional, default: south_north")
+    print("         <--lat_var=latitude_var_name>: variable name for latitude, optional, default: XLAT_M")
+    print("        <--lon_var=longitude_var_name>: variable name for longitude, optional, default: XLONG_M")
+    print("         <--geo_grid=geogrid_var_name>: 2D Variable to use in defining the grid, optional, default: HGT_M")
+
 if __name__ == '__main__':
     debug = False
     #debug = not debug
@@ -612,7 +676,13 @@ if __name__ == '__main__':
         print("   <sub_grid_factor=DD>: integer to make sub_grid dimension, optional")
         sys.exit(-1);
     
-    in_nc, out_nc, sub_grid_factor, subgrid_first = process_arguments(sys.argv[1:])
+    #parser = create_parser()
+    options_args = create_parser().parse_args()
+    options = options_args[0]
+    print('options:', options)
+    print('options_args[1]:', options_args[1])
+
+    in_nc, out_nc, sub_grid_factor, subgrid_first = process_arguments(options_args)
     if debug:
         print(' DEBUG: sub_grid_factor: {f} subgrid_first: {s}'.format(f=sub_grid_factor, s=subgrid_first))
     projdir = os.path.dirname(in_nc)
@@ -636,10 +706,17 @@ if __name__ == '__main__':
 
     # Gather variable from the input file
     rootgrp_in = nc_tools.open_nc_Dataset(in_nc)                                # Open read object on input netCDF file
-    ncvar = rootgrp_in.variables[geogridVariable]                               # netCDF Variable object
+    geo_name = XYmap['geo_name']
+    ncvar = rootgrp_in.variables.get(geo_name, None)
+    if ncvar is None:
+        raise Exception('The variable to save the grid information [{v}] does not exist'.format(v=geo_name))
     varDims = ncvar.dimensions                                                  # Read variable dimensions for the selected GEOGRID variable
-    Ysize = ncvar.shape[ncvar.dimensions.index(XYmap['y'])]                     # Get the dimension size based on the dimension name
-    Xsize = ncvar.shape[ncvar.dimensions.index(XYmap['x'])]                     # Get the dimension size based on the dimension name
+    if not XYmap['x'] in varDims:
+        raise Exception('The dimension name [{d}] does not exist'.format(d=XYmap['x']))
+    if not XYmap['y'] in varDims:
+        raise Exception('The dimension name [{d}] does not exist'.format(d=XYmap['y']))
+    Ysize = ncvar.shape[varDims.index(XYmap['x'])]                              # Get the dimension size based on the dimension name
+    Xsize = ncvar.shape[varDims.index(XYmap['y'])]                              # Get the dimension size based on the dimension name
     dataArr = ncvar[0]                                                          # Select first time slice. Assumes time is first dimension.
     del ncvar
 
@@ -673,10 +750,20 @@ if __name__ == '__main__':
         Xsize_alt=Xsize_alt, Ysize_alt=Ysize_alt)
 
     if addLatLon:
-        rootgrp.variables['LATITUDE'][:] = rootgrp_in.variables[latVar][0]
-        rootgrp.variables['LONGITUDE'][:] = rootgrp_in.variables[lonVar][0]
-        append_vars.append('LATITUDE')
-        append_vars.append('LONGITUDE')
+        lat_var_name = XYmap['lat_name']
+        lon_var_name  = XYmap['lon_name']
+        ncLatVar = rootgrp_in.variables.get(lat_var_name, None)
+        ncLonVar = rootgrp_in.variables.get(lon_var_name, None)
+        if ncLatVar is None:
+            raise Exception('The variable name "{v}" for latitude does not exist'.format(v=lat_var_name))
+        else:
+            rootgrp.variables['LATITUDE'][:] = rootgrp_in.variables[lat_var_name][0]
+            append_vars.append('LATITUDE')
+        if ncLonVar is None:
+            raise Exception('The variable name "{v}" for longitude does not exist'.format(v=lat_var_name))
+        else:
+            rootgrp.variables['LONGITUDE'][:] = rootgrp_in.variables[lon_var_name][0]
+            append_vars.append('LONGITUDE')
     rootgrp_in.close()
 
     # Fill in  x and y variables
