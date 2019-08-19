@@ -24,6 +24,22 @@ CHECKME_P  = "  -- CHECK ME --"
 OPT_GIS_INPUT_Required = False
 OPT_add_time_dim = True
 
+DIMENSION_MAP = {
+        'x':        'west_east', 
+        'y':        'south_north', 
+        'x_alt':    'west_east_subgrid',
+        'y_alt':    'south_north_subgrid'
+    } 
+
+ALT_DIMENSION_MAP = {
+        'x_alt':    'west_east', 
+        'y_alt':    'south_north',
+        'x':        'west_east_subgrid',
+        'y':        'south_north_subgrid'
+    }
+    
+
+
 def create_parser():
     usage_str = "%prog [options] "
     parser = OptionParser(usage = usage_str)
@@ -33,6 +49,8 @@ def create_parser():
             help=" output directory - optional")
     parser.add_option("--gis_input", "--gis-input", dest="gis_input_nc", default=None,
             help=" output directory - optional")
+    parser.add_option('-x','--x_dim', '--x-dim', dest="x_dim", help=" dimension name for longitude" , default=None)
+    parser.add_option('-y','--y_dim', '--y-dim', dest="y_dim", help=" dimension name for latitude" , default=None)
     #Options for CFChecker
     parser.add_option('-a','--area_types', dest="areatypes", default=None)
     parser.add_option('-b','--badc', dest="badc", default=None)
@@ -257,17 +275,8 @@ class CF_Corrector:
         self.cf_name_map = CF_Names()
         self.gis_dims = []
         self.gis_vars  = []
-        self.new_dims = {}
-        self.new_dims['west_east'] = 'x'
-        self.new_dims['south_north'] = 'y'
-        self.new_dims['west_east_subgrid'] = 'x_alt'
-        self.new_dims['south_north_subgrid'] = 'y_alt'
-        self.new_alt_dims = {}
-        self.new_alt_dims['west_east'] = 'x_alt'
-        self.new_alt_dims['south_north'] = 'y_alt'
-        self.new_alt_dims['west_east_subgrid'] = 'x'
-        self.new_alt_dims['south_north_subgrid'] = 'y'
         self.subgrid_first = False
+        self.new_dims = DIMENSION_MAP
     
     def add_gis_attrs(self, to_var):
         method_name = 'CF_Corrector.add_gis_attrs()'
@@ -279,12 +288,21 @@ class CF_Corrector:
         
         has_sub_dim = False
         has_time_dim = False
+        
+        alt_dim_names = []
+        new_dim_name = self.new_dims.get('x_alt', None)
+        if new_dim_name is not None:
+            alt_dim_names.append(new_dim_name)
+        new_dim_name = self.new_dims.get('y_alt', None)
+        if new_dim_name is not None:
+            alt_dim_names.append(new_dim_name)
+        
         for dim in nc_dims:
             dim_name = dim.name 
-            if dim_name.endswith('_alt'):
-                has_sub_dim = True
-            elif 'time' == dim_name.lower():
+            if 'time' == dim_name.lower() or 'xtime' == dim_name.lower():
                 has_time_dim = True
+            elif dim_name.endswith('_alt') or dim_name in alt_dim_names:
+                has_sub_dim = True
         
         var_name = to_var.name
         nc_attr_names = to_var.ncattrs()
@@ -395,6 +413,7 @@ class CF_Corrector:
                 nc_tools.copy_variable(to_nc, gis_var, new_dims)
         
     def correct(self, from_nc_name, to_nc_name, results, categories):
+        method_name = "CF_Corrector.correct()"
         debug = False
         #debug = not debug
         global_results = results["global"]
@@ -419,12 +438,29 @@ class CF_Corrector:
         
         gis_attrs = self.gis_attrs
         results_var_names = variables_results.keys()
-        new_dims = self.new_alt_dims if self.subgrid_first else self.new_dims
         if debug:
-            print('   === DEBUG correct() dimension sfor variable: ', new_dims)
+            print('   === DEBUG correct() dimensions for variable: ', self.new_dims)
+            
+        if 0 < len(self.gis_dims):
+            found_error = False
+            for gis_dim in self.gis_dims:
+                data_dim_name = self.new_dims.get(gis_dim.name)
+                if data_dim_name is not None and data_dim_name in to_nc.dimensions:
+                    gis_dim_size = gis_dim.size
+                    data_dim_size = to_nc.dimensions[data_dim_name].size
+                    if gis_dim_size != data_dim_size:
+                        found_error = True
+                        print('{p} {m} The dimension mismatch: {d1}: {s1} != {d2}: {s2}'.format(
+                                p=ERROR_P, m=method_name, d1=data_dim_name, s1=data_dim_size,
+                                d2=gis_dim.name, s2=gis_dim_size))
+            if found_error:
+                print('{p} {m} Did not convert because of different dimensions (could be a different domain)'.format(
+                        p=ERROR_P, m=method_name))
+                return
+            
         for var_name in from_nc.variables.keys():
             from_var = from_nc.variables[var_name]
-            to_var = nc_tools.copy_variable(to_nc, from_var, new_dims)
+            to_var = nc_tools.copy_variable(to_nc, from_var, self.new_dims)
             
             if var_name in results_var_names:
                 cf_results = variables_results.get(var_name)
@@ -440,8 +476,8 @@ class CF_Corrector:
             
             if 0 < len(gis_attrs):
                 self.add_gis_attrs(to_var)
-            
-        self.add_gis_vars(to_nc, new_dims)
+        
+        self.add_gis_vars(to_nc, self.new_dims)
         
     #def global_result_fatal(self, from_nc, results, to_nc):
     #    global_results = results["global"]
@@ -499,6 +535,8 @@ class CF_Corrector:
 
         if dim_x is not None and dim_x_alt is not None:
             self.subgrid_first = dim_x.size > dim_x_alt.size
+        
+        self.new_dims = ALT_DIMENSION_MAP if self.subgrid_first else DIMENSION_MAP
 
     #VARIABLE_IGNORE_CODES = {
     #      '2.1': ["Filename must have .nc suffix"],
@@ -579,11 +617,18 @@ def main():
         if skip_next:
             skip_next = False
             continue
-        if arg in ("-o", "--output-name", "--out_dir", "--out-dir", "--gis-input", "--gis-input"):
-            skip_next = True
-            continue
-        my_args.append(arg)
-
+        if arg not in ("-d"):
+            if arg in ("-o", "--output-name", "--out_dir", "--out-dir", "--gis-input", "--gis-input",
+                       "-x","--x-dim","--x_dim", "-y","--y-dim","--y_dim"):
+                skip_next = True
+                continue
+            my_args.append(arg)
+    
+    if options.x_dim is not None:
+        DIMENSION_MAP['x'] = options.x_dim
+    if options.y_dim is not None:
+        DIMENSION_MAP['y'] = options.y_dim
+    
     (badc,coards,uploader,useFileName,standardName,areaTypes,
             version,in_files,debug)=check_getargs(my_args)
 
@@ -597,6 +642,7 @@ def main():
         if 1 < len(in_files):
             print('{p} The "-o" or "--output-name" options is not allowed for multiple input files.\nPLease set --out-dir option.'.format(
                     p=ERROR_P))
+            print('in_files', in_files)
             sys.exit(-1)
         out_nc_name = options.out_name
         if not out_nc_name.endswith(".nc"):
@@ -616,6 +662,9 @@ def main():
             gis_data = CF_aux_tools.collect_gis_data(options.gis_input_nc)
             actor.set_gis_data(gis_data)
     
+    if options.debug:
+        nc_tools.set_debug_option(options.debug)
+        
     for in_file, out_file in zip(in_files, out_files):
         #try:
             print("{p} {m} in_file: {i}, out_file: {o}\n".format(

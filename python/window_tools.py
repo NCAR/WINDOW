@@ -34,7 +34,10 @@ class nc_tools:
         debug = debug or nc_tools.debug
         if var_name is None:
             var_name = from_var.name
-        dims = [ dim if new_dims.get(dim,None) is None else new_dims[dim] for dim in from_var.dimensions]
+        #dims = [ dim if new_dims.get(dim,None) is None else new_dims[dim] for dim in from_var.dimensions]
+        dims = [ dim if ( new_dims.get(dim,None) is None
+                        or nc_out.dimensions.get(new_dims.get(dim, "not_named"), None) is None )
+                     else new_dims[dim] for dim in from_var.dimensions ]
         if debug:
             print('   DEBUG copy_variable() var: {v} dims: {d} from {o}'.format(v=from_var.name, d=dims, o=from_var.dimensions))
         to_var = nc_out.createVariable(var_name, from_var.dtype, dims)
