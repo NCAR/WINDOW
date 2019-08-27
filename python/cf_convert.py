@@ -253,7 +253,9 @@ class CF_Corrector:
     #      '2.1': ["Filename must have .nc suffix"],
     #    '2.6.1': ["No 'Conventions' attribute present"]
     #}
-
+    
+    RENAME_DIMENSION = True
+    
     GLOBAL_HANDLERS = {
           "FATAL": correct_global_fatal,
           "ERROR": correct_global_error,
@@ -460,8 +462,11 @@ class CF_Corrector:
             
         for var_name in from_nc.variables.keys():
             from_var = from_nc.variables[var_name]
-            to_var = nc_tools.copy_variable(to_nc, from_var, self.new_dims)
-            
+            if CF_Corrector.RENAME_DIMENSION:
+                to_var = nc_tools.copy_variable(to_nc, from_var, self.new_dims)
+            else:
+                to_var = nc_tools.copy_variable(to_nc, from_var)
+                
             if var_name in results_var_names:
                 cf_results = variables_results.get(var_name)
                 if cf_results is not None:
@@ -477,7 +482,7 @@ class CF_Corrector:
             if 0 < len(gis_attrs):
                 self.add_gis_attrs(to_var)
         
-        self.add_gis_vars(to_nc, self.new_dims)
+        self.add_gis_vars(to_nc)
         
     #def global_result_fatal(self, from_nc, results, to_nc):
     #    global_results = results["global"]

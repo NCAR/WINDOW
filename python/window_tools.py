@@ -35,11 +35,25 @@ class nc_tools:
         if var_name is None:
             var_name = from_var.name
         #dims = [ dim if new_dims.get(dim,None) is None else new_dims[dim] for dim in from_var.dimensions]
-        dims = [ dim if ( new_dims.get(dim,None) is None
-                        or nc_out.dimensions.get(new_dims.get(dim, "not_named"), None) is None )
-                     else new_dims[dim] for dim in from_var.dimensions ]
+        from_dims = [ dim for dim in from_var.dimensions ]
+        if 0 < len(new_dims.keys()):
+            #dims = [ dim if ( new_dims.get(dim,None) is None
+            #                or nc_out.dimensions.get(new_dims.get(dim, "not_named"), None) is None )
+            #             else new_dims[dim] for dim in from_var.dimensions ]
+            dims = []
+            for dim in from_dims:
+                to_dim = dim
+                for dim_key, dim_name in new_dims.items():
+                    if dim_name == dim:
+                        to_dim = dim_key
+                        break
+                dims.append(to_dim)
+            
+        else:
+            dims = from_dims;
         if debug:
             print('   DEBUG copy_variable() var: {v} dims: {d} from {o}'.format(v=from_var.name, d=dims, o=from_var.dimensions))
+            #print('   DEBUG copy_variable() new_dims: {nd} from_dims: {fd}'.format(nd=new_dims, fd=from_dims))
         to_var = nc_out.createVariable(var_name, from_var.dtype, dims)
         to_var[:] = from_var[:]
         for attr_name in from_var.ncattrs():
