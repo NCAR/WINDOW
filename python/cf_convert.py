@@ -110,10 +110,10 @@ def correct_variable_error(var_name, to_var, check_code, message, cf_name_map=No
     method_name = "correct_variable_error()"
     if check_code == '3.1' and 0 == message.find('Units'):
         cf_units = None
-        if cf_name_map is not None and len(cf_name_map):
+        if cf_name_map is not None and 0 < len(cf_name_map.cf_names_map):
             cf_units = cf_name_map.get_cf_units(var_name)
+        attr_key = 'units'
         if cf_units is not None:
-            attr_key = 'units'
             to_var.setncattr('units', cf_units)
             print("{p} {k} attribute is changed to {v}".format(
                     p=ACTION_P, k=attr_key, v=cf_units))
@@ -170,7 +170,7 @@ def correct_variable_info(var_name, to_var, check_code, message, cf_name_map=Non
     if check_code == '3.1' and 0 == message.find('Units'):
         attr_key = 'units'
         is_not_corrected = True
-        if cf_name_map is not None and len(cf_name_map):
+        if cf_name_map is not None and 0 < len(cf_name_map.cf_names_map):
             cf_units = cf_name_map.get_cf_units(var_name)
             if cf_units is not None:
                 to_var.setncattr('units', cf_units)
@@ -462,7 +462,7 @@ class CF_Corrector:
             
         for var_name in from_nc.variables.keys():
             from_var = from_nc.variables[var_name]
-            if CF_Corrector.RENAME_DIMENSION:
+            if CF_Corrector.RENAME_DIMENSION and 0 < len(self.gis_dims):
                 to_var = nc_tools.copy_variable(to_nc, from_var, self.new_dims)
             else:
                 to_var = nc_tools.copy_variable(to_nc, from_var)
@@ -500,7 +500,7 @@ class CF_Corrector:
             category_handler(from_nc, to_nc, check_code, message)
         
     def correct_variable(self, category_handler, var_name,
-                                    to_var, results, cf_name_map):
+                         to_var, results, cf_name_map):
         for result in results:
             (check_code, message) = self.separate_error_code(result)
             category_handler(var_name, to_var, check_code, message, cf_name_map)
