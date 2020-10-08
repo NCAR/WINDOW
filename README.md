@@ -29,3 +29,10 @@ Command to update WRF outputs:
     python cf_convert.py -o output/wrfout_fire_d02_2018-04-17_17_00_00.nc \
     --gis-input gis_d02.nc input/wrfout_fire_d02_2018-04-17_17_00_00
     
+
+The configuration:
+- The library of Unidata UDUNITS (https://www.unidata.ucar.edu/software/udunits/)
+- Python packages
+   - cfunits (1.9)
+   - netCDF4 (1.4.2)
+   - GDAL (1.11.0)
