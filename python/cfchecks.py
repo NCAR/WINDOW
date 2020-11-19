@@ -45,7 +45,7 @@ from netCDF4 import Variable as netCDF4_Variable
 try:
     from cfunits import Units
 except ImportError as ex:
-    print("    INFO] cfunits package is not available. Trying cf_units package...")
+    print("    INFO] cfunits package is not available. Using cf_units package...")
     from cf_units import Unit as Units
 
 # Version is imported from the package module cfchecker/__init__.py
@@ -690,8 +690,11 @@ class CFChecker:
                 self._add_error("CF Files containing %s featureType may contain 2 occurrences of a cf_role attribute" % featureType)
 
     if not self.silent:
-        print
+        print()
+
+    print("========== Checking Summary ==========")
     self.show_counts(append_to_all_messages=True)
+    print()
     return self.results
 
 
