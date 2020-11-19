@@ -5,7 +5,7 @@ Created on May 24, 2019
 '''
 
 from netCDF4 import Dataset as nc4_Dataset
-from netCDF4 import Variable as nc4_Variable
+#from netCDF4 import Variable as nc4_Variable
 
 class nc_tools:
     debug = False
@@ -30,8 +30,7 @@ class nc_tools:
     SKIP_Attrs = [ '_FillValue']
     @staticmethod
     def copy_variable(nc_out, from_var, new_dims={}, var_name=None):
-        debug = False 
-        debug = debug or nc_tools.debug
+        cf_logger = get_simple_logger()
         if var_name is None:
             var_name = from_var.name
         #dims = [ dim if new_dims.get(dim,None) is None else new_dims[dim] for dim in from_var.dimensions]
@@ -51,14 +50,15 @@ class nc_tools:
             
         else:
             dims = from_dims;
-        if debug:
-            print('   DEBUG copy_variable() var: {v} dims: {d} from {o}'.format(v=from_var.name, d=dims, o=from_var.dimensions))
+        cf_logger.debug(3,' copy_variable() var: {v} dims: {d} from {o}'.format(
+                v=from_var.name, d=dims, o=from_var.dimensions))
             #print('   DEBUG copy_variable() new_dims: {nd} from_dims: {fd}'.format(nd=new_dims, fd=from_dims))
         to_var = nc_out.createVariable(var_name, from_var.dtype, dims)
-        to_var[:] = from_var[:]
+        if 0 < len(from_dims):
+            to_var[:] = from_var[:]
         for attr_name in from_var.ncattrs():
             if attr_name in nc_tools.SKIP_Attrs:
-                print( " skipped attribute {v}: {a}={av}".format(
+                cf_logger.log( " skipped attribute {v}: {a}={av}".format(
                     a=attr_name, v=from_var.name, av=from_var.getncattr(attr_name)))
                 continue
             to_var.setncattr(attr_name, from_var.getncattr(attr_name))
@@ -89,8 +89,7 @@ class nc_tools:
     @staticmethod
     def find_lat_long_variables(nc):
         method_name = "find_lat_long_variables(nc)"
-        debug = False
-        debug = not debug
+        cf_logger = get_simple_logger()
         variables = []
         attr_name = 'units'
         for var_name in nc.variables.keys():
@@ -98,8 +97,8 @@ class nc_tools:
             if attr_name in var.ncattrs():
                 units_str = var.getncattr(attr_name)
                 if units_str.lower().startswith('degree'):
-                    if debug:
-                        print("{m} {v}.units: {u}".format(m=method_name, v=var_name, u=units_str))
+                    cf_logger.debug(1, "{m} {v}.units: {u}".format(
+                            m=method_name, v=var_name, u=units_str))
                     variables.append(var)
         return variables
         
@@ -110,3 +109,40 @@ class nc_tools:
     @staticmethod
     def set_debug_option(debug):
         nc_tools.debug = debug
+
+
+class SimpleLogger(object):
+    
+    singleton = None
+    
+    def __init__(self, log_level=1):
+        self.set_log_level(log_level)
+        
+    def is_log_enabled(self, log_level):
+        return self.log_level >= log_level
+
+    def set_log_level(self, log_level):
+        self.log_level = log_level
+
+    def debug(self, log_level, message):
+        if self.is_log_enabled(log_level):
+            self.log(" Debug({l}) {m}".format(l=log_level, m=message))
+    
+    def log(self, message):
+        print(message)
+    
+    def error(self, message):
+        self.log(" == ERROR ==")
+        self.log(" == ERROR == {m}".format(m=message))
+        self.log(" == ERROR ==")
+    
+    def info(self, message):
+        self.log("    INFO] {m}".format(m=message))
+
+    def warning(self, message):
+        self.log("  -- WARN -- {m}".format(m=message))
+
+def get_simple_logger():
+    if SimpleLogger.singleton is None:
+        SimpleLogger.singleton = SimpleLogger()
+    return SimpleLogger.singleton
