@@ -8,7 +8,9 @@ from optparse import OptionParser
 from cfchecks import CFChecker, vn1_6
 from cfchecks import getargs as check_getargs
 
-from window_tools import nc_tools
+from window_tools import nc_tools, get_simple_logger
+
+cf_logger = get_simple_logger()
 
 ENV_CF_NAMES_CFG    = 'CF_NAME_CONFIG'
 WINDOW_CF_NAMES_CFG = 'cf_names.json'
@@ -39,6 +41,11 @@ ALT_DIMENSION_MAP = {
     }
     
 
+ARGUMENT_LIST = [ "-o", "--output-name", "--out_dir", "--out-dir",
+                  "--gis-input", "--gis-input",
+                  "-x","--x-dim","--x_dim", "-y","--y-dim","--y_dim"
+                ]
+
 
 def create_parser():
     usage_str = "%prog [options] "
@@ -49,14 +56,18 @@ def create_parser():
             help=" output directory - optional")
     parser.add_option("--gis_input", "--gis-input", dest="gis_input_nc", default=None,
             help=" output directory - optional")
-    parser.add_option('-x','--x_dim', '--x-dim', dest="x_dim", help=" dimension name for longitude" , default=None)
-    parser.add_option('-y','--y_dim', '--y-dim', dest="y_dim", help=" dimension name for latitude" , default=None)
+    parser.add_option('-x','--x_dim', '--x-dim', dest="x_dim",
+            help=" dimension name for longitude" , default=None)
+    parser.add_option('-y','--y_dim', '--y-dim', dest="y_dim",
+            help=" dimension name for latitude" , default=None)
     #Options for CFChecker
     parser.add_option('-a','--area_types', dest="areatypes", default=None)
     parser.add_option('-b','--badc', dest="badc", default=None)
     parser.add_option('-c','--coards', dest="coards", default=None)
     parser.add_option("-d", dest="debug", action="store_true", default=False,
             help=" Enable debug - optional")
+    parser.add_option("--debug-level", "--debug_level", dest="debug_level", default=0,
+            help=" Set the debug level- optional")
     parser.add_option('-l','--uploader', dest="uploader", default=None)
     parser.add_option('-n','--noname', dest="useFileName", default=None)
     #        useFileName="no"
@@ -69,12 +80,12 @@ def create_parser():
 def correct_global_fatal(from_nc, to_nc, check_code, message):
     method_name = "correct_global_fatal()"
     if check_code != '2.1': # (2.1) the netcdf must has ".nc" extension.
-        print('{p}  {n} check the global config for code {c}, {m}'.format(
+        cf_logger.info('{p}  {n} check the global config for code {c}, {m}'.format(
                 p=FIXME_P, n=method_name, c=check_code, m=message))
 
 def correct_global_error(from_nc, to_nc, check_code, message):
     method_name = "correct_global_error()"
-    print('{p}  {n} check the global config for code {c}\n\t{m}'.format(
+    cf_logger.info('{p}  {n} check the global config for code {c}\n\t{m}'.format(
             p=FIXME_P, n=method_name, c=check_code, m=message))
 
 def correct_global_warn(from_nc, to_nc, check_code, message):
@@ -83,15 +94,15 @@ def correct_global_warn(from_nc, to_nc, check_code, message):
         attr_key = 'Conventions'
         attr_value = vn1_6.__str__()
         to_nc.setncattr(attr_key, attr_value)
-        print("{p} The global attribute {k} ({v}) is added".format(
+        cf_logger.info("{p} The global attribute {k} ({v}) is added".format(
                 p=ACTION_P, k=attr_key, v=attr_value))
     else:
-        print('{p}  {n} check the global config for code {c}\n\t{m}'.format(
+        cf_logger.info('{p}  {n} check the global config for code {c}\n\t{m}'.format(
                 p=FIXME_P, n=method_name, c=check_code, m=message))
 
 def correct_global_info(from_nc, to_nc, check_code, message):
     method_name = "correct_global_info()"
-    print('{p}  {n} check the global config for code {c}\n\t{m}'.format(
+    cf_logger.info('{p}  {n} check the global config for code {c}\n\t{m}'.format(
             p=CHECKME_P, n=method_name, c=check_code, m=message))
 
 def correct_global_version(from_nc, to_nc, check_code, message):
@@ -101,7 +112,7 @@ def correct_global_version(from_nc, to_nc, check_code, message):
     
 def correct_variable_fatal(var_name, to_var, check_code, message, cf_name_map=None):
     method_name = "correct_variable_fatal()"
-    print('{p}  {n} check the variable {v} for code: {c}\n\t{m}'.format(
+    cf_logger.info('{p}  {n} check the variable {v} for code: {c}\n\t{m}'.format(
             p=FIXME_P, n=method_name, v=var_name, c=check_code, m=message))
 
 def correct_variable_error(var_name, to_var, check_code, message, cf_name_map=None):
@@ -115,11 +126,11 @@ def correct_variable_error(var_name, to_var, check_code, message, cf_name_map=No
         attr_key = 'units'
         if cf_units is not None:
             to_var.setncattr('units', cf_units)
-            print("{p} {k} attribute is changed to {v}".format(
+            cf_logger.log("{p} {k} attribute is changed to {v}".format(
                     p=ACTION_P, k=attr_key, v=cf_units))
         else:
-            print("{p}  {n} {k} attribute for {v} is not available".format(
-                    p=INFO_P, n=method_name, k=attr_key, v=var_name))
+            cf_logger.info("{n} {k} attribute for {v} is not available".format(
+                    n=method_name, k=attr_key, v=var_name))
     else:
         print('{p}  {n} check the variable {v} for code: {c}\n\t{m}'.format(
                 p=FIXME_P, n=method_name, v=var_name, c=check_code, m=message))
@@ -135,34 +146,33 @@ def correct_variable_warn(var_name, to_var, check_code, message, cf_name_map):
         has_standard_name = attr_key in nc_attrs
         if standard_name is not None and not has_standard_name:
             to_var.setncattr(attr_key, standard_name)
-            print("{p} The variable attribute {k} ({v}) is added".format(
+            cf_logger.log("{p} The variable attribute {k} ({v}) is added".format(
                     p=ACTION_P, k=attr_key, v=standard_name))
             attr_key = 'units'
             if standard_name == 'fire_area' and attr_key in nc_attrs:
+                #DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
                 nc_units = to_var.getncattr(attr_key)
                 cf_units = cf_name_map.get_cf_units(var_name)
                 if cf_units is not None and nc_units != cf_units:
                     to_var.setncattr(attr_key, cf_units)
-                    print("{p} The variable attribute {k} is changed to {v}".format(
+                    cf_logger.log("{p} The variable attribute {k} is changed to {v}".format(
                             p=ACTION_P, k=attr_key, v=cf_units))
                 
         long_name = cf_name_map.get_cf_long_name(var_name)
-        if debug:
-            print("{p} has_standard_name {e}, standard_name: {s}, long_name: {l}".format(
-                    p=DEBUG_P, e=has_standard_name, s=standard_name, l=long_name))
+        cf_logger.debug(1, "has_standard_name {e}, standard_name: {s}, long_name: {l}".format(
+                    e=has_standard_name, s=standard_name, l=long_name))
         if long_name is None and standard_name is None:
-            if debug:
-                print("{p}    Fix me !!!  missing the standard_name and long_name for {n}".format(
-                        p=DEBUG_P, n=var_name))
+            cf_logger.debug(1, "Fix me !!!  missing the standard_name and long_name for {n}".format(
+                    n=var_name))
             long_name = var_name.lower()
         attr_key = 'long_name'
         if not has_standard_name and long_name is not None and \
                 0 < len(long_name) and attr_key not in nc_attrs:
             to_var.setncattr(attr_key, long_name)
-            print("{p} The variable attribute {k} ({v}) is added".format(
+            cf_logger.log("{p} The variable attribute {k} ({v}) is added".format(
                     p=ACTION_P, k=attr_key, v=long_name))
     else:
-        print('{p}  {n} check the variable {v} for code: {c}\n\t{m}'.format(
+        cf_logger.warning('{p}  {n} check the variable {v} for code: {c}\n\t{m}'.format(
                 p=FIXME_P, n=method_name, v=var_name, c=check_code, m=message))
 
 def correct_variable_info(var_name, to_var, check_code, message, cf_name_map=None):
@@ -170,23 +180,24 @@ def correct_variable_info(var_name, to_var, check_code, message, cf_name_map=Non
     if check_code == '3.1' and 0 == message.find('Units'):
         attr_key = 'units'
         is_not_corrected = True
+        #if cf_name_map is not None and 0 < len(cf_name_map.cf_names_map):
         if cf_name_map is not None and 0 < len(cf_name_map.cf_names_map):
             cf_units = cf_name_map.get_cf_units(var_name)
             if cf_units is not None:
                 to_var.setncattr('units', cf_units)
                 is_not_corrected = False
-                print("{p} {k} attribute is changed to {v}".format(
+                cf_logger.log("{p} {k} attribute is changed to {v}".format(
                         p=ACTION_P, k=attr_key, v=cf_units))
         if is_not_corrected:
-            print("{p}  {n} {k} attribute for {v} is not available".format(
-                    p=INFO_P, n=method_name, k=attr_key, v=var_name))
+            cf_logger.info("{n} {k} attribute for {v} is not available".format(
+                    n=method_name, k=attr_key, v=var_name))
     else:
-        print('{p}  {n} check the variable {v} for code: {c}\n\t{m}'.format(
+        cf_logger.info('{p}  {n} check the variable {v} for code: {c}\n\t{m}'.format(
                 p=CHECKME_P, n=method_name, v=var_name, c=check_code, m=message))
 
 def correct_variable_version(var_name, to_var, check_code, message, cf_name_map=None):
     method_name = "correct_variable_version()"
-    print('{p}  {n} check the variable {v} for code: {c}\n\t{m}'.format(
+    cf_logger.warning('{p}  {n} check the variable {v} for code: {c}\n\t{m}'.format(
             p=FIXME_P, n=method_name, v=var_name, c=check_code, m=message))
     
 
@@ -195,7 +206,8 @@ class CF_Names:
     def __init__(self, cf_names_file=None):
         method_name = "CF_Names.__init__()"
         if cf_names_file is not None and not os.path.exists(cf_names_file):
-            print("   WARN: The CF name configuration file () does not exist.".format(f=cf_names_file))
+            cf_logger.warning("   WARN: The CF name configuration file () does not exist.".format(
+                    f=cf_names_file))
             cf_names_file = None
         if cf_names_file is None:
             cf_names_file = os.environ.get(ENV_CF_NAMES_CFG, WINDOW_CF_NAMES_CFG)
@@ -204,19 +216,17 @@ class CF_Names:
                 self.cf_names_map = json.loads(json_file.read())
         else:
             self.cf_names_map = {}
-            print("{p} {m} The configuration file '{f}' is missing which contains the standard and long names.".format(
-                    p=INFO_P, m=method_name, f=WINDOW_CF_NAMES_CFG))
-            print("\tIt should be in the current working directory or specified by using the environment variable '{e}'.".format(
+            cf_logger.info("{m} The configuration file '{f}' is missing which contains the standard and long names.".format(
+                    m=method_name, f=WINDOW_CF_NAMES_CFG))
+            cf_logger.info("\tIt should be in the current working directory or specified by using the environment variable '{e}'.".format(
                     e=ENV_CF_NAMES_CFG))
         self.missing_var_list = []
                 
     def get_cf_attribute(self, key):
         attribute = None
         keys = key.split('.')
-        print('key: {k}, keys: {ks}'.format(k=key, ks=keys))
+        self.logger.debug(1, 'key: {k}, keys: {ks}'.format(k=key, ks=keys))
         if 0 < len(keys):
-            #print('   key: {k}'.format(k=keys[0]))
-            #print('   key: XLAT: {v}'.format(v=self.cf_names_map.get(keys[0], None)))
             attribute = self.cf_names_map.get(keys[0], None)
             if attribute is not None and 1 < len(keys):
                 for key in keys[1:]:
@@ -231,7 +241,7 @@ class CF_Names:
             attribute = attribute.get(attr_key, None)
         elif var_name not in self.missing_var_list:
             self.missing_var_list.append(var_name)
-            print("{p} get_cf_var_attribute() missing {v} at json".format(p=WARN_P, v=var_name))
+            cf_logger.info("get_cf_var_attribute() missing {v} at json".format(v=var_name))
         
         if convert_empty_to_none and attribute is not None and 0 == len(attribute):
             attribute = None
@@ -254,7 +264,7 @@ class CF_Corrector:
     #    '2.6.1': ["No 'Conventions' attribute present"]
     #}
     
-    RENAME_DIMENSION = True
+    RENAME_DIMENSION = False
     
     GLOBAL_HANDLERS = {
           "FATAL": correct_global_fatal,
@@ -279,12 +289,13 @@ class CF_Corrector:
         self.gis_vars  = []
         self.subgrid_first = False
         self.new_dims = DIMENSION_MAP
+        self.logger = get_simple_logger()
     
     def add_gis_attrs(self, to_var):
         method_name = 'CF_Corrector.add_gis_attrs()'
-        debug = False
-        #debug = not debug
-        nc_dims = to_var.get_dims()
+        debug_level = 3
+        #nc_dims = to_var.get_dims()
+        nc_dims = to_var.dimensions
         if 1 >= len(nc_dims):
             return
         
@@ -299,8 +310,9 @@ class CF_Corrector:
         if new_dim_name is not None:
             alt_dim_names.append(new_dim_name)
         
-        for dim in nc_dims:
-            dim_name = dim.name 
+        #for dim in nc_dims:
+        #    dim_name = dim.name
+        for dim_name in nc_dims: 
             if 'time' == dim_name.lower() or 'xtime' == dim_name.lower():
                 has_time_dim = True
             elif dim_name.endswith('_alt') or dim_name in alt_dim_names:
@@ -329,9 +341,8 @@ class CF_Corrector:
             nc_attr = to_var.getncattr(attr_key)
             has_coordinates_attr = (nc_attr is not None)
             if has_coordinates_attr:
-                if debug:
-                    print("{m} DEBUG ===== {k}={v} for {vn}".format(
-                                m=method_name, k=attr_key, v=nc_attr,vn=var_name))
+                self.logger.debug(debug_level, "{m} {k}={v} for {vn}".format(
+                        m=method_name, k=attr_key, v=nc_attr,vn=var_name))
                 new_nc_attr = nc_attr
                 #if "XLONG XLAT XTIME" == nc_attr and 'time' == nc_dims[0].name.lower():
                 if "XLONG XLAT XTIME" == nc_attr:
@@ -347,7 +358,7 @@ class CF_Corrector:
                 
                 if new_nc_attr != nc_attr:
                     to_var.setncattr(attr_key, new_nc_attr)
-                    print("{m} Updated {k}={v} for {vn}".format(
+                    self.logger.debug(debug_level, "{m} Updated {k}={v} for {vn}".format(
                             m=method_name, k=attr_key, v=new_nc_attr,vn=var_name))
 
         gis_attrs = self.gis_attrs
@@ -368,20 +379,17 @@ class CF_Corrector:
                     nc_key = 'CoordinateSystems'
                 
                 if nc_key in nc_attr_names:
-                    if debug:
-                        print('{p} {m} Exist attribute {k} for {vn} already'.format(
-                                p=DEBUG_P, m=method_name, k=nc_key, vn=var_name))
+                    self.logger.debug(debug_level, '{m} Exist attribute {k} for {vn} already'.format(
+                            m=method_name, k=nc_key, vn=var_name))
                     continue
                 
-                if debug:
-                    print('{p} {m} gis_attr: {ko} => {k} = {v} for {vn}'.format(p=DEBUG_P, m=method_name, \
-                            ko=nc_raw_key, k=nc_key, v=attr_value, vn=var_name))
+                self.logger.debug(debug_level, '{m} gis_attr: {ko} => {k} = {v} for {vn}'.format(
+                        m=method_name, ko=nc_raw_key, k=nc_key, v=attr_value, vn=var_name))
                 if ('grid_mapping' == nc_key or 'CoordinateSystems' == nc_key):
                     if is_alt_key != has_sub_dim:
-                        if debug:
-                            print('{p} {m} Ignored attribute {k} because is_alt_key={a} vs. has_sub_dim={s} for {vn}'.format(
-                                    p=DEBUG_P, m=method_name, k=nc_raw_key, a=is_alt_key, s=has_sub_dim, vn=var_name))
-                            continue
+                        self.logger.debug(debug_level,
+                                '{m} Ignored attribute {k} because is_alt_key={a} vs. has_sub_dim={s} for {vn}'.format(
+                                m=method_name, k=nc_raw_key, a=is_alt_key, s=has_sub_dim, vn=var_name))
                     
                     if has_time_dim and OPT_add_time_dim:
                         attr_value = attr_value + '_t'
@@ -390,7 +398,9 @@ class CF_Corrector:
                 #        continue
                 
                 to_var.setncattr(nc_key, attr_value)
-                print("{m} adding {k}={v} for {vn}".format(m=method_name, k=nc_key, v=attr_value,vn=var_name))
+                self.logger.debug(debug_level,
+                        "{m} adding {k}={v} for {vn}".format(
+                        m=method_name, k=nc_key, v=attr_value,vn=var_name))
         
 #     def add_gis_dimensions(self, to_nc):
 #         method_name = "add_gis_dimensions()"
@@ -405,10 +415,11 @@ class CF_Corrector:
         
     def add_gis_vars(self, to_nc, new_dims={}):
         method_name = "add_gis_vars()"
-        debug = False
-        #debug = not debug
-        if debug:
-            print("{m} is called, global_dims: {d}".format(m=method_name, d=to_nc.dimensions))
+        debug_level = 3
+        if self.logger.is_log_enabled(debug_level):
+            self.logger.debug(3, "{m} is called, global_dims:".format(m=method_name))
+            for a_dim in to_nc.dimensions:
+                self.logger.debug(3, "\t{d}".format(d=a_dim))
         #if self.gis_dim_x is not None and self.gis_dim_y is not None and 0 < len(self.gis_vars):
         if 0 < len(self.gis_dims) and 0 < len(self.gis_vars):
             for gis_var in self.gis_vars:
@@ -416,18 +427,15 @@ class CF_Corrector:
         
     def correct(self, from_nc_name, to_nc_name, results, categories):
         method_name = "CF_Corrector.correct()"
-        debug = False
-        #debug = not debug
         global_results = results["global"]
         variables_results = results["variables"]
-        if debug:
-            print('===============    global_results', global_results)
-            print('=============== variables_results', variables_results)
+        self.logger.debug(1, '===============    global_results {v}'.format(v=global_results))
+        self.logger.debug(1, '=============== variables_results {v}'.format(v=variables_results))
         
         from_nc = nc_tools.open_nc_Dataset(from_nc_name)
         to_nc   = nc_tools.create_nc_from(to_nc_name, from_nc, self.gis_dims)
-        if debug:
-            print(' == DEBUG correct()  new global dimensions: ', to_nc.dimensions)
+        self.logger.debug(1,
+                ' correct()  new global dimensions: {v}'.format(v=to_nc.dimensions))
         
         for category in categories:
             if category == 'VERSION':
@@ -440,8 +448,7 @@ class CF_Corrector:
         
         gis_attrs = self.gis_attrs
         results_var_names = variables_results.keys()
-        if debug:
-            print('   === DEBUG correct() dimensions for variable: ', self.new_dims)
+        self.logger.debug(1, 'correct() dimensions for variable: {v}'.format(v=self.new_dims))
             
         if 0 < len(self.gis_dims):
             found_error = False
@@ -452,12 +459,12 @@ class CF_Corrector:
                     data_dim_size = to_nc.dimensions[data_dim_name].size
                     if gis_dim_size != data_dim_size:
                         found_error = True
-                        print('{p} {m} The dimension mismatch: {d1}: {s1} != {d2}: {s2}'.format(
-                                p=ERROR_P, m=method_name, d1=data_dim_name, s1=data_dim_size,
+                        cf_logger.error('{m} The dimension mismatch: {d1}: {s1} != {d2}: {s2}'.format(
+                                m=method_name, d1=data_dim_name, s1=data_dim_size,
                                 d2=gis_dim.name, s2=gis_dim_size))
             if found_error:
-                print('{p} {m} Did not convert because of different dimensions (could be a different domain)'.format(
-                        p=ERROR_P, m=method_name))
+                cf_logger.error('{m} Did not convert because of different dimensions (could be a different domain)'.format(
+                        m=method_name))
                 return
             
         for var_name in from_nc.variables.keys():
@@ -482,17 +489,17 @@ class CF_Corrector:
             if 0 < len(gis_attrs):
                 self.add_gis_attrs(to_var)
         
-        self.add_gis_vars(to_nc)
+        self.add_gis_vars(to_nc, self.new_dims)
         
     #def global_result_fatal(self, from_nc, results, to_nc):
     #    global_results = results["global"]
     #    variables_results = results["variables"]
-    #    print("global_results", global_results)
+    #    cf_logger.log("global_results", global_results)
     #    for key in variables_results.keys():
     #        variable_results = variables_results.get(key)
     #        if variable_results is None:
     #            continue
-    #        print("variable_results", variable_results)
+    #        cf_logger.log("variable_results", variable_results)
 
     def correct_global(self, category_handler, from_nc, to_nc, results):
         for result in results:
@@ -507,8 +514,6 @@ class CF_Corrector:
 
     def separate_error_code(self, result):
         method_name = "separate_error_code()"
-        debug = False
-        #debug = not debug
         offset = result.find(':')
         if 0 < offset and 10 > offset:
             start_offset = 1 if '(' == result[0] else 0
@@ -520,10 +525,10 @@ class CF_Corrector:
             check_code = 'unknown'
             message = result.strip()
         
-        if debug:
-            print("{n} check_code: '{c}' message: [{m}]".format(
-                    n=method_name, c=check_code, m=message))
+        self.logger.debug(1, "{n} check_code: '{c}' message: [{m}]".format(
+                n=method_name, c=check_code, m=message))
         return (check_code, message)
+    
     def set_gis_data(self, gis_data):
         self.gis_attrs = gis_data[0]
         self.gis_dims  = gis_data[1]
@@ -555,8 +560,7 @@ class CF_aux_tools:
         debug = False
         #debug = not debug
 
-        #if debug:
-        #    print("{m} is called".format(m=method_name))
+        #self.logger.debug("{m} is called".format(m=method_name))
         gis_attrs = {}
         var_names = []
         gis_input_nc = nc_tools.open_nc_Dataset(gis_input_name)
@@ -564,13 +568,16 @@ class CF_aux_tools:
         for global_attr in global_attrs:
             if global_attr.startswith('WINDOW_'):
                 gis_attrs[global_attr] = gis_input_nc.getncattr(global_attr)
-                if debug:
-                    print("{m} attr: {k} = {v}".format(m=method_name, k=global_attr, v=gis_attrs[global_attr]))
+                cf_logger.debug(1, "{m} attr: {k} = {v}".format(
+                        m=method_name, k=global_attr, v=gis_attrs[global_attr]))
                 if global_attr == 'WINDOW_append_vars':
                     var_names = gis_attrs[global_attr].split(',')
         #grid_mapping_key = 'WINDOW_grid_mapping'
         #if grid_mapping_key in gis_attrs.keys():
         #    grid_mapping_var = gis_attrs[grid_mapping_key]
+        
+        if 0 == len(var_names):
+            var_names = ['x', 'y', 'crs', 'crs_t', 'LATITUDE', 'LONGITUDE' ]
 
         dims = []
         dim_keys = []
@@ -579,8 +586,7 @@ class CF_aux_tools:
             var = gis_input_nc.variables.get(var_name, None)
             if var is not None:
                 variables.append(var)
-                #if debug:
-                #    print("{m} DEBUG dimensions: {d}".format(m=method_name, d=var.dimensions))
+                #if self.logger.debug(1, "{m} dimensions: {d}".format(m=method_name, d=var.dimensions))
                 for dim_name in var.dimensions:
                     if not dim_name in dim_keys:
                         dim_keys.append(dim_name)
@@ -613,7 +619,10 @@ def main():
     parser = create_parser()
     options_args = parser.parse_args()
     options = options_args[0]
+    
     #args = options_args[1]
+    cf_logger.set_log_level(options.debug_level)
+
     
     #Filter out arguments which are not for cfchecks
     my_args = []
@@ -623,8 +632,7 @@ def main():
             skip_next = False
             continue
         if arg not in ("-d"):
-            if arg in ("-o", "--output-name", "--out_dir", "--out-dir", "--gis-input", "--gis-input",
-                       "-x","--x-dim","--x_dim", "-y","--y-dim","--y_dim"):
+            if arg in ARGUMENT_LIST or arg.split('=')[0] in ARGUMENT_LIST:
                 skip_next = True
                 continue
             my_args.append(arg)
@@ -645,8 +653,7 @@ def main():
         out_files = CF_aux_tools.make_output_names(in_files, options.out_dir)
     else:
         if 1 < len(in_files):
-            print('{p} The "-o" or "--output-name" options is not allowed for multiple input files.\nPLease set --out-dir option.'.format(
-                    p=ERROR_P))
+            cf_logger.error('The "-o" or "--output-name" options is not allowed for multiple input files.\nPLease set --out-dir option.')
             print('in_files', in_files)
             sys.exit(-1)
         out_nc_name = options.out_name
@@ -655,14 +662,13 @@ def main():
         out_files = [out_nc_name]
     
     if options.gis_input_nc is None:
-        print("{p} The GIS input file is missing. Please set it with --gis-input.".format(
-                p=WARN_P))
+        cf_logger.warning("The GIS input file is missing. Please set it with --gis-input.")
         if OPT_GIS_INPUT_Required:
             sys.exit(-1)
     else:
         if not os.path.exists(options.gis_input_nc):
-            print("{p} The GIS input file {g} does not exist. Ignored GIS attributes.".format(
-                    p=WARN_P, g=options.gis_input_nc))
+            cf_logger.warning("The GIS input file {g} does not exist. Ignored GIS attributes.".format(
+                    g=options.gis_input_nc))
         else:
             gis_data = CF_aux_tools.collect_gis_data(options.gis_input_nc)
             actor.set_gis_data(gis_data)
@@ -672,12 +678,12 @@ def main():
         
     for in_file, out_file in zip(in_files, out_files):
         #try:
-            print("{p} {m} in_file: {i}, out_file: {o}\n".format(
-                    p=INFO_P, m=method_name, i=in_file, o=out_file))
+            cf_logger.info("{m} in_file: {i}, out_file: {o}\n".format(
+                    m=method_name, i=in_file, o=out_file))
             results = checker.checker(in_file)
-            print("\n==================")
-            print("Start correcting {m} ...".format(m=method_name))
-            print("==================")
+            cf_logger.log("\n==================")
+            cf_logger.log("Start correcting {m} ...".format(m=method_name))
+            cf_logger.log("==================")
             actor.correct(in_file, out_file, results, checker.categories)
         #except ex:
         #    print("Processing of file %s aborted due to error" % in_file)
@@ -685,20 +691,24 @@ def main():
     
     totals = checker.get_total_counts()
 
-    if debug:
-        print("")
-        print("Results dictionary:", checker.all_results)
-        print("")
-        print("Messages that were printed", checker.all_messages)
+    debug_level = 5
+    if cf_logger.is_log_enabled(debug_level):
+        cf_logger.debug(debug_level, "")
+        cf_logger.debug(debug_level, "Results dictionary: {v}".format(v=checker.all_results))
+        cf_logger.debug(debug_level, "")
+        cf_logger.debug(debug_level, "Messages that were printed {v}".format(v=checker.all_messages))
+        cf_logger.log("")
 
-    errs = totals["FATAL"] + totals["ERROR"]
-    if errs:
-        sys.exit(errs)
+    err_count = totals["FATAL"] + totals["ERROR"]
+    if err_count:
+        cf_logger.log("Done with detecting {e} critical errors".format(e=err_count))
+        sys.exit(err_count)
     
     #warns = totals["WARN"]
     #if warns:
     #    sys.exit(-warns)
 
+    cf_logger.log("Done")
     sys.exit(0)
 
 
