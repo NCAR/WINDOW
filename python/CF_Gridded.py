@@ -29,13 +29,17 @@ import math
 from optparse import OptionParser
 # Import Additional Modules
 import numpy
-#import netCDF4
-import ogr
-import osr
+try:
+    import ogr
+    import osr
+    from osgeo import gdal
+    #from osgeo import ogr, osr, gdal
+except:
+    sys.exit('ERROR: cannot find GDAL/OGR modules')
+from window_tools import nc_tools, get_simple_logger
 # --- End Import Modules --- #
 
-from window_tools import nc_tools
-
+cf_logger = get_simple_logger()
 
 OPT_shift_to_center = True
 OPT_add_time_dim = True
@@ -92,6 +96,9 @@ sphere_radius = 6370000.0                                                       
 # --- End Globals --- #
 
 # --- Functions --- #
+def is_GDAL_version_lessthan_3():
+    return int(gdal.__version__.split('.')[0]) < 3
+
 def Read_GEOGRID_for_SRS(in_nc):
     """
     The input NetCDF file (Ideally WRF GEOGRID) gets georeferenced and projection
@@ -104,15 +111,15 @@ def Read_GEOGRID_for_SRS(in_nc):
     tic = time.time()
 
     # First step: Import and georeference NetCDF file
-    print('  Step 1: NetCDF Conversion initiated...')
-    print('    Input netCDF GEOGRID file: %s' %in_nc)
+    cf_logger.log('  Step 1: NetCDF Conversion initiated...')
+    cf_logger.log('    Input netCDF GEOGRID file: %s' %in_nc)
 
     # Read input WPS GEOGRID file
     # Loop through global variables in NetCDF file to gather projection information
     rootgrp = nc_tools.open_nc_Dataset(in_nc)                                   # Establish an object for reading the input NetCDF file
     globalAtts = rootgrp.__dict__                                               # Read all global attributes into a dictionary
     map_pro = globalAtts['MAP_PROJ']                                            # Find out which projection this GEOGRID file is in
-    print('    Map Projection: %s' %projdict[map_pro])
+    cf_logger.log('    Map Projection: %s' %projdict[map_pro])
 
     # Collect grid corner XY and DX DY for creating ascii raster later
     if 'corner_lats' in globalAtts:
@@ -136,10 +143,10 @@ def Read_GEOGRID_for_SRS(in_nc):
     if 'POLE_LON' in globalAtts:
         pole_longitude = globalAtts['POLE_LON'].astype(numpy.float64)
     if 'MOAD_CEN_LAT' in globalAtts:
-        print('    Using MOAD_CEN_LAT for latitude of origin.')
+        cf_logger.log('    Using MOAD_CEN_LAT for latitude of origin.')
         latitude_of_origin = globalAtts['MOAD_CEN_LAT'].astype(numpy.float64)         # Added 2/26/2017 by KMS
     elif 'CEN_LAT' in globalAtts:
-        print('    Using CEN_LAT for latitude of origin.')
+        cf_logger.log('    Using CEN_LAT for latitude of origin.')
         latitude_of_origin = globalAtts['CEN_LAT'].astype(numpy.float64)
     del globalAtts
     rootgrp.close()
@@ -149,7 +156,7 @@ def Read_GEOGRID_for_SRS(in_nc):
 
     # Use projection information from global attributes to populate OSR spatial reference object
     # See this website for more information on defining coordinate systems: http://gdal.org/java/org/gdal/osr/SpatialReference.html
-    print('    Map Projection: %s' %projdict[int(map_pro)])
+    #cf_logger.log('    Map Projection: %s' %projdict[int(map_pro)])
     if map_pro == 1:
         # Lambert Conformal Conic
         if 'standard_parallel_2' in locals():
@@ -167,7 +174,7 @@ def Read_GEOGRID_for_SRS(in_nc):
         # Method where central scale factor is k0, Derivation from C. Rollins 2011, equation 1: http://earth-info.nga.mil/GandG/coordsys/polar_stereographic/Polar_Stereo_phi1_from_k0_memo.pdf
         # Using Rollins 2011 to perform central scale factor calculations. For a sphere, the equation collapses to be much  more compact (e=0, k90=1)
         central_scale_factor = (1 + math.sin(math.radians(abs(phi1))))/2        # Equation for k0, assumes k90 = 1, e=0. This is a sphere, so no flattening
-        print('        Central Scale Factor: %s' %central_scale_factor)
+        cf_logger.log('        Central Scale Factor: %s' %central_scale_factor)
         #proj1.SetPS(latitude_of_origin, central_meridian, central_scale_factor, 0, 0)    # example: proj1.SetPS(90, -1.5, 1, 0, 0)
         proj1.SetPS(pole_latitude, central_meridian, central_scale_factor, 0, 0)    # Adjusted 8/7/2017 based on changes made 4/4/2017 as a result of Monaghan's polar sterographic domain. Example: proj1.SetPS(90, -1.5, 1, 0, 0)
         #proj1.SetPS(double clat, double clong, double scale, double fe, double fn)
@@ -179,7 +186,7 @@ def Read_GEOGRID_for_SRS(in_nc):
         # Cylindrical Equidistant (or Rotated Pole)
         if pole_latitude != float(90) or pole_longitude != float(0):
             # if pole_latitude, pole_longitude, or stand_lon are changed from thier default values, the pole is 'rotated'.
-            print('[PROBLEM!] Cylindrical Equidistant projection with a rotated pole is not currently supported.')
+            cf_logger.log('[PROBLEM!] Cylindrical Equidistant projection with a rotated pole is not currently supported.')
             raise SystemExit
         else:
             proj1.SetEquirectangular(latitude_of_origin, central_meridian, 0, 0)
@@ -195,11 +202,17 @@ def Read_GEOGRID_for_SRS(in_nc):
     wgs84_proj.ImportFromEPSG(4326)
     transform = osr.CoordinateTransformation(wgs84_proj, proj1)
     point = ogr.Geometry(ogr.wkbPoint)
-    point.AddPoint_2D(corner_lon, corner_lat)
+    if is_GDAL_version_lessthan_3():
+        point.AddPoint_2D(corner_lon, corner_lat)
+    else:
+        point.AddPoint_2D(corner_lat, corner_lon)
     point.Transform(transform)
     x00 = point.GetX(0)
     y00 = point.GetY(0)
-    print('  Created projection definition from input NetCDF GEOGRID file %s in %.2fs.' %(in_nc, time.time()-tic))
+    cf_logger.log('  Created projection definition from input NetCDF GEOGRID file %s in %.2fs.' %(in_nc, time.time()-tic))
+    if x00 == float('inf') or y00 == float('inf'):
+        cf_logger.error('  Fail to transform the coordination. Quit...')
+        sys.exit(1)
     return proj1, DX, DY, x00, y00, map_pro
 
 def add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, PE_stringEsri, PE_stringGDAL,
@@ -211,7 +224,7 @@ def add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, PE_stringEs
 
     To find OGR projection parameters, reference https://www.gdal.org/ogr__srs__api_8h.html
     """
-    tic1 = time.time()
+    #tic = time.time()
 
     # Scalar projection variable - http://www.unidata.ucar.edu/software/thredds/current/netcdf-java/reference/StandardCoordinateTransforms.html
     proj_var = rootgrp.createVariable(CoordSysVarName, 'S1')                    # (Scalar Char variable)
@@ -279,7 +292,7 @@ def add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, PE_stringEs
         # Required transform variables
         #proj_var.grid_mapping_name = "latitude_longitude"                      # or "rotated_latitude_longitude"
 
-        print('        Cylindrical Equidistant projection not supported.')
+        cf_logger.log('        Cylindrical Equidistant projection not supported.')
         raise SystemExit
 
     # Added 10/13/2017 by KMS to accomodate alternate datums
@@ -335,9 +348,9 @@ def getXY(GeoTransformStr, nx, ny, flipY=True):
 
     if flipY:
         y = y[::-1]
-    print('    1D Coordinate variables calculated in {0: 8.2f} seconds.'.format(time.time()-tic1))
-    #print('     DEBUG ====  getXY: x: ', x[0] , ' to  ', x[-1], ' y: ', y[0],' to ', y[-1], ' length=', len(y))
-    #print('     DEBUG ====  getXY: from gt[1]: ', gt[1] , ' gt[0]: ', gt[0], ' gt[5]: ', gt[5],' gt[3]: ', gt[3])
+    cf_logger.log('    1D Coordinate variables calculated in {0: 8.2f} seconds.'.format(time.time()-tic1))
+    #cf_logger.log('     DEBUG ====  getXY: x: ', x[0] , ' to  ', x[-1], ' y: ', y[0],' to ', y[-1], ' length=', len(y))
+    #cf_logger.log('     DEBUG ====  getXY: from gt[1]: ', gt[1] , ' gt[0]: ', gt[0], ' gt[5]: ', gt[5],' gt[3]: ', gt[3])
     return x, y
 
 
@@ -351,15 +364,15 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
     global variables latVar and lonVar from the GEOGRID file."""
 
     tic1 = time.time()
-    print('  Creating CF-netCDF File.')
+    cf_logger.log('  Creating CF-netCDF File.')
 
     # Find name for the grid mapping
     if CF_projdict.get(map_pro) is not None:
         grid_mapping = CF_projdict[map_pro]
-        print('    Map Projection of input raster : %s' %grid_mapping)
+        cf_logger.log('    Map Projection of input raster : %s' %grid_mapping)
     else:
         grid_mapping = 'crs'                                                    # Added 10/13/2017 by KMS to generalize the coordinate system variable names
-        print('    Map Projection of input raster (not a WRF projection): %s' %grid_mapping)
+        cf_logger.log('    Map Projection of input raster (not a WRF projection): %s' %grid_mapping)
 
     # Create Dimensions
     reg_dx = float(DX)
@@ -381,7 +394,7 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
             reg_dy = reg_dy / my_subgrid_factor
         else:
             sub_dy = reg_dy / my_subgrid_factor
-    print('    Dimensions created after {0: 8.2f} seconds.'.format(time.time()-tic1))
+    cf_logger.log('    Dimensions created after {0: 8.2f} seconds.'.format(time.time()-tic1))
 
     append_vars = []
 
@@ -487,14 +500,14 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
         #ncvar.long_name = varinfo[2]
         #ncvar.units = varinfo[3]
 
-    print('    Coordinate variables and variable attributes set after {0: 8.2f} seconds.'.format(time.time()-tic1))
+    cf_logger.log('    Coordinate variables and variable attributes set after {0: 8.2f} seconds.'.format(time.time()-tic1))
 
     dim_names = ('y', 'x')
     if Xsize > Xsize_alt:
         dim_names = ('y_alt', 'x_alt')
     if addLatLon == True:
 
-        print('    Proceeding to add LATITUDE and LONGITUDE variables after {0: 8.2f} seconds.'.format(time.time()-tic1))
+        cf_logger.log('    Proceeding to add LATITUDE and LONGITUDE variables after {0: 8.2f} seconds.'.format(time.time()-tic1))
 
         # Populate this file with 2D latitude and longitude variables
         # Latitude and Longitude variables (WRF)
@@ -547,15 +560,9 @@ def create_CF_NetCDF(rootgrp, dataArr, sr, map_pro, projdir, DX, DY, GeoTransfor
         #append_vars.append(geogridVariable)
 
 
-    print('    netCDF global attributes set after {0: 8.2f} seconds.'.format(time.time()-tic1))
+    cf_logger.log('    netCDF global attributes set after {0: 8.2f} seconds.'.format(time.time()-tic1))
     return rootgrp, append_vars
 
-try:
-    #from osgeo import ogr, osr, gdal
-    from osgeo import gdal
-except:
-    sys.exit('ERROR: cannot find GDAL/OGR modules')
-    
 # example GDAL error handler function
 def gdal_error_handler(err_class, err_num, err_msg):
     errtype = {
@@ -567,9 +574,9 @@ def gdal_error_handler(err_class, err_num, err_msg):
     }
     err_msg = err_msg.replace('\n',' ')
     err_class = errtype.get(err_class, 'None')
-    print('Error Number: %s' % (err_num))
-    print('Error Type: %s' % (err_class))
-    print('Error Message: %s' % (err_msg))
+    cf_logger.log('Error Number: %s' % (err_num))
+    cf_logger.log('Error Type: %s' % (err_class))
+    cf_logger.log('Error Message: %s' % (err_msg))
     
 def create_parser():
     usage_str = "%prog [options] "
@@ -586,6 +593,8 @@ def create_parser():
     parser.add_option('-y','--y_dim', dest="y_dim", help=" dimension name for latitude" , default=None)
     parser.add_option("-d", dest="debug", action="store_true", default=False,
             help=" Enable debug - optional")
+    parser.add_option("--api", dest="api_test", action="store_true", default=False,
+            help=" Enable API test - optional")
 
     return parser
 
@@ -597,8 +606,7 @@ def process_arguments(options_args):
     arg_count = len(argv)
     in_nc = argv[arg_index]
     if not os.path.exists(in_nc):
-        print(" ==ERROR == The input geogrid file [{i}] does not exist!!!".format(i=in_nc))
-        print("            Quit...")
+        cf_logger.error("The input geogrid file [{i}] does not exist!!!\nQuit...".format(i=in_nc))
         sys.exit(-2);
 
     if options.lat_var is not None:
@@ -617,7 +625,7 @@ def process_arguments(options_args):
     subgrid_first = False
     
     projdir = os.path.dirname(in_nc)
-    print("  arg_count", arg_count)
+    cf_logger.debug(3, "  arg_count: {o}".format(o=arg_count))
     
     for arg_index in range(1,arg_count):
         if argv[arg_index].isdigit():
@@ -650,41 +658,76 @@ def process_arguments(options_args):
         out_nc = os.path.join(projdir, os.path.basename(in_nc).replace('.nc', '_spatial.nc'))
     return in_nc, out_nc, sub_grid_factor, subgrid_first
 
+def test_GDAL_API():
+    srs_4326 = osr.SpatialReference()
+    srs_4326.ImportFromEPSG(4326)
+
+    srs_3857 = osr.SpatialReference()
+    srs_3857.ImportFromEPSG(3857)
+
+    ct_4326_to_3857 = osr.CoordinateTransformation(srs_4326, srs_3857)
+
+    target_x = -13358338.89519283
+    target_y = 6446275.8410171615
+    
+    lat = 50.0
+    lon = -120.0
+
+    if is_GDAL_version_lessthan_3():
+        mapx, mapy, _ = ct_4326_to_3857.TransformPoint(lon, lat)
+    else:
+        mapx, mapy, _ = ct_4326_to_3857.TransformPoint(lat, lon)
+
+    print("Computed: (x,y) = ({x}, {y})".format(x=mapx, y=mapy))
+    print("Expected: (x,y) = ({x}, {y})".format(x=target_x, y=target_y))
+    abs_diff_x = math.fabs(mapx-target_x)
+    abs_diff_y = math.fabs(mapy-target_y)
+    if abs_diff_x < 0.00001 and abs_diff_y < 0.00001:
+        print("=== Success === diff of x,y = {x}, {y}   GDAL version: {v}".format(
+                x=abs_diff_x, y=abs_diff_y, v=gdal.__version__))
+    else:
+        print("=== ERROR === diff of x,y = {x}, {y}   GDAL version: {v}".format(
+                x=abs_diff_x, y=abs_diff_y, v=gdal.__version__))
+
 def show_help(app_name):
-    print(" Usage {p} input_geogrid_file [output_geogrid_file]".format(p=app_name))
-    print("     input_geogrid_file: input geogrid file name, required")
-    print("    output_geogrid_file: output geogrid file name, optional, default: <input>_spatial.nc")
-    print("     <subgrid_factor=D>: integer to make sub_grid dimension, optional")
-    print("   <--subgrid_factor=D>: integer to make sub_grid dimension, optional")
-    print("        <subgrid_first>: string 'subgrid_first' to make sub_grid dimension, optional")
-    print("               <-x=longitude_dim_name>: dimension name for longitude, optional, default: west_east")
-    print("                <-y=latitude_dim_name>: dimension name for latitude, optional, default: south_north")
-    print("         <--lat_var=latitude_var_name>: variable name for latitude, optional, default: XLAT_M")
-    print("        <--lon_var=longitude_var_name>: variable name for longitude, optional, default: XLONG_M")
-    print("         <--geo_grid=geogrid_var_name>: 2D Variable to use in defining the grid, optional, default: HGT_M")
+    cf_logger.log(" Usage {p} input_geogrid_file [output_geogrid_file]".format(p=app_name))
+    cf_logger.log("     input_geogrid_file: input geogrid file name, required")
+    cf_logger.log("    output_geogrid_file: output geogrid file name, optional, default: <input>_spatial.nc")
+    cf_logger.log("                         GIS data is inserted and becomes the GIS input file")
+    cf_logger.log("     <subgrid_factor=D>: integer to make sub_grid dimension, optional")
+    cf_logger.log("   <--subgrid_factor=D>: integer to make sub_grid dimension, optional")
+    cf_logger.log("        <subgrid_first>: string 'subgrid_first' to make sub_grid dimension, optional")
+    cf_logger.log("               <-x=longitude_dim_name>: dimension name for longitude, optional, default: west_east")
+    cf_logger.log("                <-y=latitude_dim_name>: dimension name for latitude, optional, default: south_north")
+    cf_logger.log("         <--lat_var=latitude_var_name>: variable name for latitude, optional, default: XLAT_M")
+    cf_logger.log("        <--lon_var=longitude_var_name>: variable name for longitude, optional, default: XLONG_M")
+    cf_logger.log("         <--geo_grid=geogrid_var_name>: 2D Variable to use in defining the grid, optional, default: HGT_M")
+
 
 if __name__ == '__main__':
-    debug = False
-    #debug = not debug
     tic = time.time()
 
     # Gather all necessary parameters
     if 1 == len(sys.argv):
-        print(" Usage {p} input_geogrid_file [output_geogrid_file]".format(p=sys.argv[0]))
-        print("     input_geogrid_file: input geogrid file name, required")
-        print("    output_geogrid_file: output geogrid file name, optional, default: <input>_spatial.nc")
-        print("   <sub_grid_factor=DD>: integer to make sub_grid dimension, optional")
+        cf_logger.log(" Usage {p} input_geogrid_file [output_geogrid_file]".format(p=sys.argv[0]))
+        cf_logger.log("     input_geogrid_file: input geogrid file name, required")
+        cf_logger.log("    output_geogrid_file: output geogrid file name, optional, default: <input>_spatial.nc")
+        cf_logger.log("   <sub_grid_factor=DD>: integer to make sub_grid dimension, optional")
         sys.exit(-1);
     
     #parser = create_parser()
     options_args = create_parser().parse_args()
     options = options_args[0]
-    print('options:', options)
-    print('options_args[1]:', options_args[1])
+    cf_logger.debug(3, '        options: {o}'.format(o=options))
+    cf_logger.debug(3, 'options_args[1]: {o}'.format(o=options_args[1]))
 
+    if options.api_test:
+        test_GDAL_API()
+        sys.exit(0)
+        
     in_nc, out_nc, sub_grid_factor, subgrid_first = process_arguments(options_args)
-    if debug:
-        print(' DEBUG: sub_grid_factor: {f} subgrid_first: {s}'.format(f=sub_grid_factor, s=subgrid_first))
+    cf_logger.debug(1, 'sub_grid_factor: {f} subgrid_first: {s}'.format(
+            f=sub_grid_factor, s=subgrid_first))
     projdir = os.path.dirname(in_nc)
 
     # install error handler
@@ -699,8 +742,8 @@ if __name__ == '__main__':
     PE_stringGDAL = proj.ExportToWkt()                                          # This is GDAL's representation of a WTK string
     proj.MorphToESRI()                                                          # Alter the projection to Esri's representation of a coordinate system
     PE_stringEsri = proj.ExportToWkt()                                          # This is Esri's representation of a WKT string
-    print('  Proj4: {0}'.format(proj4))                                         # Print Proj.4 string to screen
-    print('  GeoTransform: {0}'.format(GeoTransform))                           # Print affine transformation to screen.
+    cf_logger.log('  Proj4: {0}'.format(proj4))                                 # Print Prcf_logger.logstring to screen
+    cf_logger.log('  GeoTransform: {0}'.format(GeoTransform))                   # Print affine transformation to screen.
     if sub_grid_factor > 1:
         GeoTransform_subgrid = '%s %s %s %s %s %s' %(x00, DX/sub_grid_factor, 0, y00, 0, -DY/sub_grid_factor)               # Build an affine transformation (useful info to add to metadata)
 
@@ -767,28 +810,26 @@ if __name__ == '__main__':
     rootgrp_in.close()
 
     # Fill in  x and y variables
-    if debug:
-        print('   DEBUG main() Xsize_reg: ', Xsize_reg, " len(xarr)=", len(xarr))
+    cf_logger.debug(1, 'main() Xsize_reg: {s} len(xarr)={a}'.format(s=Xsize_reg, a=len(xarr)))
     try:
         rootgrp.variables['y'][:] = yarr[:]
         rootgrp.variables['x'][:] = xarr[:]
     except IndexError as ex:
         if len(yarr) != len(rootgrp.variables['y'][:]):
-            print(' ERROR  the array size does not match: from {s1} to {s2}. Xsize: {x}, Ysize: {y}'.format(
+            cf_logger.error('the array size does not match: from {s1} to {s2}. Xsize: {x}, Ysize: {y}'.format(
                     s1=len(yarr), s2=len(rootgrp.variables['y'][:]), x=Xsize_reg, y=Ysize_reg))
         raise ex
     del yarr, xarr
 
     if has_subgrid:
         xarr_sub, yarr_sub = getXY(GeoTransform_subgrid, Xsize_alt, Ysize_alt, flipY=True)           # Use affine transformation to calculate cell coordinates
-        if debug:
-            print('   DEBUG length of yarr_sub: {l}'.format(l=len(yarr_sub)))
+        cf_logger.debug(1, ' length of yarr_sub: {l}'.format(l=len(yarr_sub)))
         try:
             rootgrp.variables['y_alt'][:] = yarr_sub[:]
             rootgrp.variables['x_alt'][:] = xarr_sub[:]
         except IndexError as ex:
             if len(yarr) != len(rootgrp.variables['y'][:]):
-                print(' ERROR  the array size does not match: from {s1} to {s2}. Xsize_alt: {x}, Ysize_alt: {y}'.format(
+                cf_logger.error('the array size does not match: from {s1} to {s2}. Xsize_alt: {x}, Ysize_alt: {y}'.format(
                         s1=len(yarr_sub), s2=len(rootgrp.variables['y_alt'][:]), x=Xsize_alt, y=Ysize_alt))
         del yarr_sub, xarr_sub
         
@@ -804,4 +845,5 @@ if __name__ == '__main__':
     
     #uninstall error handler
     gdal.PopErrorHandler()
-    print('Process completed in {t: 3.2f} seconds [{o}].'.format(t=(time.time()-tic), o=out_nc))
+    cf_logger.log('Process completed in {t: 3.2f} seconds [{o}].'.format(t=(time.time()-tic), o=out_nc))
+    
