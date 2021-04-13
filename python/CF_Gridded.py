@@ -30,8 +30,12 @@ from optparse import OptionParser
 # Import Additional Modules
 import numpy
 try:
-    import ogr
-    import osr
+    if sys.version_info >= (3, 0):
+        from osgeo import ogr
+        from osgeo import osr
+    else:
+        import ogr
+        import osr
     from osgeo import gdal
     #from osgeo import ogr, osr, gdal
 except:
